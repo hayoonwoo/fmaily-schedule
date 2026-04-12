@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V5.3</title>
+    <title>우리 가족 스마트 시간표 V5.5</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
@@ -17,6 +17,14 @@
         .top-nav { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--brd); z-index: 1000; }
         .nav-btn { background: #F1F3F5; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px; }
         .nav-btn.primary { background: var(--p-color); color: white; }
+
+        .member-selector-bar { display: flex; gap: 5px; overflow-x: auto; padding: 10px 10px 5px 10px; background: #fff; white-space: nowrap; }
+        .m-chip { padding: 6px 12px; border-radius: 20px; background: #f0f0f0; font-size: 12px; font-weight: bold; cursor: pointer; border: 2px solid transparent; }
+        .m-chip.active { background: #A29BFE; color: white; border-color: #6C5CE7; }
+
+        /* 신규: 일정 아이템 빠른 선택 바 */
+        .quick-task-bar { display: flex; gap: 5px; overflow-x: auto; padding: 5px 10px 10px 10px; background: #fff; border-bottom: 1px solid #eee; }
+        .t-chip { padding: 5px 10px; border-radius: 6px; background: #E8F4FF; font-size: 11px; color: #0984E3; font-weight: bold; cursor: pointer; border: 1px solid #D1E9FF; }
 
         .input-panel { background: #fff; padding: 10px; border-bottom: 1px solid var(--brd); flex-shrink: 0; }
         .input-group { display: flex; gap: 4px; margin-bottom: 8px; }
@@ -56,19 +64,28 @@
 <body>
 
     <nav class="top-nav">
-        <button class="nav-btn" onclick="toggleMenu(true)">👨‍👩‍👧‍👦 가족목록</button>
+        <button class="nav-btn" onclick="toggleMenu(true)">👨‍👩‍👧‍👦 목록</button>
         <div id="viewStatus" style="font-weight: 800; color: #0984E3; font-size: 14px;">🌟 전체보기</div>
         <button class="nav-btn primary" onclick="addSchedule()">💾 저장</button>
     </nav>
 
+    <div class="member-selector-bar" id="inputMemberSelector"></div>
+    
+    <div class="quick-task-bar">
+        <div class="t-chip" onclick="quickInput('학교')">🏫 학교</div>
+        <div class="t-chip" onclick="quickInput('학원')">✏️ 학원</div>
+        <div class="t-chip" onclick="quickInput('수영')">🏊 수영</div>
+        <div class="t-chip" onclick="quickInput('피아노')">🎹 피아노</div>
+        <div class="t-chip" onclick="quickInput('축구')">⚽ 축구</div>
+        <div class="t-chip" onclick="quickInput('독서')">📖 독서</div>
+        <div class="t-chip" onclick="quickInput('휴식')">🛌 휴식</div>
+    </div>
+
     <div class="input-panel">
         <div class="input-group">
-            <input type="text" id="classNameInp" class="inp-name" list="defaultSchedules" placeholder="📍 일정명 (예: 수영)">
-            <datalist id="defaultSchedules">
-                <option value="학교"> <option value="수영"> <option value="구몬"> <option value="피아노"> <option value="축구">
-            </datalist>
-            <input type="text" id="startTime" class="inp-time" placeholder="시작(1400)" maxlength="4">
-            <input type="text" id="endTime" class="inp-time" placeholder="종료(1500)" maxlength="4">
+            <input type="text" id="classNameInp" class="inp-name" placeholder="📍 직접 입력 또는 위에서 선택">
+            <input type="text" id="startTime" class="inp-time" placeholder="시작(0900)" maxlength="4">
+            <input type="text" id="endTime" class="inp-time" placeholder="종료(1000)" maxlength="4">
         </div>
         <div id="daySelector" class="day-selector"></div>
     </div>
@@ -84,14 +101,14 @@
     </div>
 
     <div class="export-area">
-        <button class="export-btn" onclick="exportExcel()">📊 엑셀 정밀 추출 (30분단위)</button>
+        <button class="export-btn" onclick="exportExcel()">📊 엑셀 정밀 추출</button>
     </div>
 
     <div id="overlay" onclick="toggleMenu(false)" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1500;"></div>
     <div id="memberModal">
-        <h2 style="font-size:18px;">👨‍👩‍👧‍👦 가족 명단</h2>
+        <h2 style="font-size:18px;">👨‍👩‍👧‍👦 가족 관리</h2>
         <div id="memberList"></div>
-        <button onclick="addMember()" style="width:100%; padding:12px; margin-top:10px; border-radius:10px; border:none; background:#eee; font-weight:bold;">+ 멤버 추가</button>
+        <button onclick="addMember()" style="width:100%; padding:12px; margin-top:10px; border-radius:10px; border:none; background:#eee; font-weight:bold;">+ 새 멤버</button>
     </div>
 
 <script>
@@ -109,7 +126,7 @@
 
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
     const colorPalette = ['#D1BAFF', '#B2E2F2', '#FFBEBC', '#FFF5BA', '#ABF7B1', '#E2F0CB', '#FFCCF9', '#C7CEEA'];
-    let colorMap = {}, schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
+    let colorMap = {}, schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체", selectedInputMember = "아빠";
 
     const init = () => {
         document.getElementById('dayHeaders').innerHTML = '<th class="time-col">시간</th>' + dayNames.map(d => `<th>${d}</th>`).join('');
@@ -122,7 +139,17 @@
         render();
     };
 
+    // 퀵 입력 함수
+    const quickInput = (val) => {
+        document.getElementById('classNameInp').value = val;
+    };
+
     const render = () => {
+        const bar = document.getElementById('inputMemberSelector');
+        bar.innerHTML = familyMembers.map(m => `
+            <div class="m-chip ${selectedInputMember === m ? 'active' : ''}" onclick="setInputMember('${m}')">${m}</div>
+        `).join('');
+
         const layer = document.getElementById('blockLayer');
         const nowLine = document.getElementById('nowLine');
         layer.innerHTML = ''; if(nowLine) layer.appendChild(nowLine);
@@ -131,6 +158,7 @@
         const headH = table.querySelector('thead').offsetHeight;
         const rowH = table.querySelector('tbody td').offsetHeight;
         const colW = table.querySelector('tbody td:nth-child(2)').offsetWidth;
+        
         const now = new Date();
         if(now.getHours() >= 6 && now.getHours() <= 22) {
             nowLine.style.display = 'block';
@@ -148,20 +176,20 @@
                 const block = document.createElement('div');
                 block.className = 'class-block';
                 block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${42 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
-                block.innerHTML = `<div style="font-size:8px; opacity:0.7">${item.owner}</div><div>${item.name}</div>`;
+                block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div>${item.name}</div>`;
                 block.onclick = () => confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save());
                 layer.appendChild(block);
             });
         });
     };
 
-    // 엑셀 추출: 가장 안정적인 표준 방식으로 복구 + 세로 병합 구조 유지
+    const setInputMember = (m) => { selectedInputMember = m; render(); };
+
     const exportExcel = () => {
         try {
             const header = ["시간", ...dayNames];
             const dataRows = [header];
             const merges = [];
-
             for(let h=6; h<=22; h++) {
                 [0, 30].forEach(m => {
                     const timeStr = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
@@ -178,35 +206,23 @@
                     dataRows.push(row);
                 });
             }
-
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(dataRows);
-
-            // 셀 병합 로직
             dayNames.forEach((_, dIdx) => {
                 let startRow = -1;
                 const colIdx = dIdx + 1;
                 for(let r=1; r < dataRows.length; r++) {
                     const currentVal = dataRows[r][colIdx];
                     const nextVal = (r + 1 < dataRows.length) ? dataRows[r+1][colIdx] : null;
-                    if(currentVal !== "" && currentVal === nextVal) {
-                        if(startRow === -1) startRow = r;
-                    } else {
-                        if(startRow !== -1) {
-                            merges.push({ s: {r: startRow, c: colIdx}, e: {r: r, c: colIdx} });
-                            startRow = -1;
-                        }
-                    }
+                    if(currentVal !== "" && currentVal === nextVal) { if(startRow === -1) startRow = r; } 
+                    else { if(startRow !== -1) { merges.push({ s: {r: startRow, c: colIdx}, e: {r: r, c: colIdx} }); startRow = -1; } }
                 }
             });
             ws['!merges'] = merges;
             ws['!cols'] = [{wch:10}, ...Array(7).fill({wch:20})];
-
             XLSX.utils.book_append_sheet(wb, ws, "가족시간표");
-            XLSX.writeFile(wb, `우리집_시간표_${currentFilter}.xlsx`);
-        } catch (e) {
-            alert("엑셀 추출 중 오류가 발생했습니다: " + e.message);
-        }
+            XLSX.writeFile(wb, `가족시간표_${currentFilter}.xlsx`);
+        } catch (e) { alert("오류: " + e.message); }
     };
 
     const addSchedule = () => {
@@ -214,9 +230,15 @@
         const sV = document.getElementById('startTime').value, eV = document.getElementById('endTime').value;
         const days = [...document.querySelectorAll('.day-check input:checked')].map(i => i.value);
         if(!name || sV.length<4 || eV.length<4 || !days.length) return alert("정보를 모두 입력해주세요.");
+        
         days.forEach(d => {
             if(!schedule[d]) schedule[d] = [];
-            schedule[d].push({ name, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, owner: currentFilter === "전체" ? familyMembers[0] : currentFilter });
+            schedule[d].push({ 
+                name, 
+                start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, 
+                end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, 
+                owner: selectedInputMember 
+            });
         });
         save();
         document.getElementById('classNameInp').value = ''; document.getElementById('startTime').value = ''; document.getElementById('endTime').value = '';
@@ -229,8 +251,8 @@
     };
 
     const renderMembers = () => {
-        let h = `<div class="member-item" onclick="setFilter('전체')">🌟 전체보기</div>`;
-        familyMembers.forEach((m, i) => { h += `<div class="member-item"><span onclick="setFilter('${m}')" style="flex:1">👤 ${m}</span><button onclick="deleteMember(${i})" style="border:none; color:red; background:none;">❌</button></div>`; });
+        let h = `<div class="member-item" onclick="setFilter('전체')">🌟 전체보기 (필터)</div>`;
+        familyMembers.forEach((m, i) => { h += `<div class="member-item"><span onclick="setFilter('${m}')" style="flex:1">👤 ${m} 시간표만 보기</span><button onclick="deleteMember(${i})" style="border:none; color:red; background:none;">❌</button></div>`; });
         document.getElementById('memberList').innerHTML = h;
     };
 
