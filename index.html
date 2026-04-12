@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 스케줄러 V3</title>
+    <title>우리 가족 스마트 스케줄러 V3.1</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -15,7 +15,6 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Pretendard', sans-serif; }
         body, html { height: 100%; margin: 0; background: var(--bg); color: var(--txt); overflow: hidden; display: flex; flex-direction: column; }
         
-        /* UI Components */
         .top-nav { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--brd); z-index: 1000; }
         .nav-btn { background: #F0F2F5; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
         .nav-btn.primary { background: var(--p-color); color: white; }
@@ -29,7 +28,6 @@
         .day-check input { display: none; }
         .day-check:has(input:checked) { background: #BDB2FF; color: white; border-color: #BDB2FF; }
 
-        /* Timetable Core */
         .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; }
         .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .timetable th { background: #FBFBFF; font-size: 12px; height: 40px; border-bottom: 1px solid var(--brd); border-right: 1px solid var(--brd); position: sticky; top: 0; z-index: 20; }
@@ -37,9 +35,8 @@
         .timetable td { height: 45px; border-bottom: 1px solid var(--brd); border-right: 1px solid var(--brd); }
 
         #blockLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
-        .class-block { position: absolute; pointer-events: auto; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; font-weight: bold; font-size: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; }
+        .class-block { position: absolute; pointer-events: auto; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; font-weight: bold; font-size: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid rgba(0,0,0,0.05); }
 
-        /* Modal & Overlay */
         #memberModal { display: none; position: fixed; top: 0; left: 0; width: 220px; background: white; height: 100%; z-index: 2000; box-shadow: 5px 0 15px rgba(0,0,0,0.1); padding: 20px; }
         .member-item { display: flex; justify-content: space-between; align-items: center; background: #F8F9FA; margin-bottom: 8px; padding: 10px; border-radius: 8px; font-size: 14px; cursor: pointer; }
         .member-item.active { background: var(--p-color); color: white; }
@@ -101,10 +98,10 @@
     const db = firebase.database();
 
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
-    const colors = ['#FFADAD', '#FFD6A5', '#FDFFB6', '#CAFFBF', '#9BF6FF', '#A0C4FF', '#BDB2FF', '#FFC6FF'];
+    // 다채로운 파스텔 팔레트
+    const colors = ['#FFADAD', '#FFD6A5', '#FDFFB6', '#CAFFBF', '#9BF6FF', '#A0C4FF', '#BDB2FF', '#FFC6FF', '#E2F0CB', '#FFCCF9'];
     let schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
 
-    // 초기 테이블 생성
     const init = () => {
         document.getElementById('dayHeaders').innerHTML = '<th class="time-col">시간</th>' + dayNames.map(d => `<th>${d}</th>`).join('');
         document.getElementById('daySelector').innerHTML = dayNames.map(d => `<label class="day-check"><input type="checkbox" value="${d}"> ${d}</label>`).join('');
@@ -131,9 +128,7 @@
     };
 
     const setFilter = (n) => { currentFilter = n; document.getElementById('viewStatus').innerText = n; toggleMenu(false); render(); };
-
     const addMember = () => { const n = prompt("이름 입력:"); if(n && !familyMembers.includes(n)) { familyMembers.push(n); save(); } };
-    
     const deleteMember = (i) => { if(confirm(`${familyMembers[i]}님을 삭제할까요?`)) { familyMembers.splice(i, 1); save(); } };
 
     const render = () => {
@@ -147,12 +142,17 @@
         dayNames.forEach((day, dIdx) => {
             (schedule[day] || []).forEach((item, i) => {
                 if(currentFilter !== "전체" && item.owner !== currentFilter) return;
+                
                 const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
                 const s = parse(item.start) - (8*60), dur = parse(item.end) - parse(item.start);
                 
+                // [개선] 일정 이름(item.name)을 기준으로 고유 색상 배정
+                const nameHash = item.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                const colorIdx = nameHash % colors.length;
+
                 const block = document.createElement('div');
                 block.className = 'class-block';
-                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${50 + dIdx*colW}px; width:${colW}px; background:${colors[familyMembers.indexOf(item.owner)%8]};`;
+                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${50 + dIdx*colW}px; width:${colW}px; background:${colors[colorIdx]};`;
                 block.innerHTML = `<div style="font-size:8px; opacity:0.6">${item.owner}</div><div style="width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.name}</div>`;
                 block.onclick = () => confirm('이 일정을 삭제할까요?') && (schedule[day].splice(i, 1), save());
                 layer.appendChild(block);
@@ -195,23 +195,20 @@
 
     const exportPDF = () => {
         const element = document.getElementById('captureArea');
-        // PDF 출력을 위해 컨테이너 높이 일시적 해제
         const originalHeight = element.style.height;
         element.style.height = 'auto';
         element.style.overflow = 'visible';
 
         const opt = {
-            margin: 5,
-            filename: '우리_가족_시간표.pdf',
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, logging: false },
+            margin: 5, filename: '우리_가족_시간표.pdf', image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
         html2pdf().set(opt).from(element).save().then(() => {
             element.style.height = originalHeight;
             element.style.overflow = 'auto';
-            render(); // 좌표 재계산
+            render();
         });
     };
 
