@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V3.8</title>
+    <title>우리 가족 스마트 시간표 V3.9</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -19,37 +19,37 @@
         .nav-btn { background: #F1F3F5; border: none; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
         .nav-btn.primary { background: var(--p-color); color: white; }
 
-        /* [수정] 입력창 칸 크기 조절 */
+        /* 입력 패널 구성 최적화 */
         .input-panel { background: #fff; padding: 12px; border-bottom: 1px solid var(--brd); flex-shrink: 0; }
-        .input-group { display: flex; gap: 8px; margin-bottom: 10px; }
-        .inp-name { flex: 1.2; padding: 12px; background: #fff; border: 2px solid #DEE2E6; border-radius: 10px; font-size: 14px; outline: none; }
-        .inp-time { flex: 1; padding: 12px; background: #fff; border: 2px solid #DEE2E6; border-radius: 10px; font-size: 14px; outline: none; text-align: center; }
+        .input-group { display: flex; gap: 6px; margin-bottom: 10px; }
+        .inp-name { flex: 1.5; padding: 12px; border: 2px solid #DEE2E6; border-radius: 10px; font-size: 14px; outline: none; }
+        .inp-time { flex: 1; padding: 12px; border: 2px solid #DEE2E6; border-radius: 10px; font-size: 14px; outline: none; text-align: center; }
         
         .day-selector { display: flex; gap: 4px; }
-        .day-check { flex: 1; padding: 10px 0; background: #F8F9FA; border-radius: 10px; font-size: 12px; text-align: center; border: 1px solid #EDF2F7; font-weight: 600; }
+        .day-check { flex: 1; padding: 10px 0; background: #F8F9FA; border-radius: 10px; font-size: 12px; text-align: center; border: 1px solid #EDF2F7; font-weight: 600; cursor: pointer; }
         .day-check input { display: none; }
         .day-check:has(input:checked) { background: #A29BFE; color: white; }
 
-        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; padding: 5px; }
-        .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid var(--brd); }
+        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; padding: 0; } /* 패딩 제거로 폭 맞춤 */
+        .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; border: none; }
         .timetable th { background: #F1F3F5; font-size: 12px; height: 40px; border: 1px solid var(--brd); position: sticky; top: 0; z-index: 20; }
-        .time-col { width: 50px; font-size: 11px; color: #ADB5BD; text-align: center; border: 1px solid var(--brd); }
+        .time-col { width: 45px; font-size: 11px; color: #ADB5BD; text-align: center; border: 1px solid var(--brd); }
         .timetable td { height: 45px; border: 1px solid var(--brd); }
 
         #blockLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
         .class-block { 
-            position: absolute; pointer-events: auto; border-radius: 8px; 
+            position: absolute; pointer-events: auto; border-radius: 0; /* 칸에 맞추기 위해 둥글기 제거 가능 */
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            padding: 4px; font-weight: 800; font-size: 11px; text-align: center; 
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1); border: 1.5px solid rgba(255,255,255,0.3); 
-            line-height: 1.2; overflow: visible !important;
+            padding: 2px; font-weight: 800; font-size: 11px; text-align: center; 
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.3); 
+            line-height: 1.1; overflow: visible !important;
         }
 
-        .export-area { padding: 12px; display: flex; gap: 10px; background: #fff; border-top: 1px solid var(--brd); }
-        .export-btn { flex: 1; padding: 14px; border-radius: 10px; border: 1px solid #DEE2E6; background: #fff; font-size: 13px; font-weight: 800; }
+        .export-area { padding: 10px; display: flex; gap: 8px; background: #fff; border-top: 1px solid var(--brd); }
+        .export-btn { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #DEE2E6; background: #fff; font-size: 12px; font-weight: 800; }
 
         #memberModal { display: none; position: fixed; top: 0; left: 0; width: 260px; background: white; height: 100%; z-index: 2000; padding: 25px; box-shadow: 10px 0 20px rgba(0,0,0,0.1); }
-        .member-item { display: flex; justify-content: space-between; align-items: center; background: #F1F3F5; margin-bottom: 10px; padding: 12px; border-radius: 10px; font-weight: 600; }
+        .member-item { display: flex; justify-content: space-between; align-items: center; background: #F1F3F5; margin-bottom: 10px; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -62,7 +62,17 @@
 
     <div class="input-panel">
         <div class="input-group">
-            <input type="text" id="classNameInp" class="inp-name" placeholder="일정명 (예: 학교)">
+            <input type="text" id="classNameInp" class="inp-name" list="defaultSchedules" placeholder="일정명">
+            <datalist id="defaultSchedules">
+                <option value="학교">
+                <option value="수영">
+                <option value="구몬">
+                <option value="피아노">
+                <option value="축구">
+                <option value="수학">
+                <option value="영어">
+                <option value="미술">
+            </datalist>
             <input type="text" id="startTime" class="inp-time" placeholder="시작(0900)" maxlength="4">
             <input type="text" id="endTime" class="inp-time" placeholder="종료(1030)" maxlength="4">
         </div>
@@ -90,6 +100,7 @@
     </div>
 
 <script>
+    // 파이어베이스 설정
     const firebaseConfig = {
         apiKey: "AIzaSyD8Lu75Q9T4Uu0OA_2fXpKLh3t6z04H6yg",
         authDomain: "family-scheduler-f61ee.firebaseapp.com",
@@ -103,10 +114,9 @@
     const db = firebase.database();
 
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
-    // [수정] 과목별 고정 색상 맵
     const colorPalette = ['#D1BAFF', '#B2E2F2', '#FFBEBC', '#FFF5BA', '#ABF7B1', '#E2F0CB', '#FFCCF9', '#C7CEEA'];
-    let colorMap = {}; 
-    const iconMap = { '학교': '🏫', '피아노': '🎹', '축구': '⚽', '구몬': '📑', '수학': '🔢', '영어': '🔤' };
+    let colorMap = {};
+    const iconMap = { '학교': '🏫', '피아노': '🎹', '축구': '⚽', '구몬': '📑', '수학': '🔢', '영어': '🔤', '수영': '🏊', '미술': '🎨' };
     
     let schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
 
@@ -114,7 +124,8 @@
         document.getElementById('dayHeaders').innerHTML = '<th class="time-col">시간</th>' + dayNames.map(d => `<th>${d}</th>`).join('');
         document.getElementById('daySelector').innerHTML = dayNames.map(d => `<label class="day-check"><input type="checkbox" value="${d}"> ${d}</label>`).join('');
         let html = '';
-        for(let h=8; h<=22; h++) html += `<tr><td class="time-col">${h}:00</td>${'<td></td>'.repeat(7)}</tr>`;
+        // [수정] 06시부터 시작하도록 변경
+        for(let h=6; h<=22; h++) html += `<tr><td class="time-col">${h}:00</td>${'<td></td>'.repeat(7)}</tr>`;
         document.getElementById('timetableBody').innerHTML = html;
     };
 
@@ -125,18 +136,18 @@
     };
 
     const renderMembers = () => {
-        let h = `<div class="member-item" onclick="setFilter('전체')">전체보기</div>`;
+        let h = `<div class="member-item ${currentFilter==='전체'?'active':''}" onclick="setFilter('전체')">전체보기</div>`;
         familyMembers.forEach((m, i) => {
             h += `<div class="member-item">
                     <span onclick="setFilter('${m}')" style="flex:1">${m}</span>
-                    <button onclick="deleteMember(${i})" style="border:none; color:red; background:none;">삭제</button>
+                    <button onclick="deleteMember(${i})" style="border:none; color:red; background:none; font-size:11px;">삭제</button>
                   </div>`;
         });
         document.getElementById('memberList').innerHTML = h;
     };
 
     const deleteMember = (i) => {
-        if(confirm(`${familyMembers[i]}님을 정말 삭제하시겠습니까? 관련 데이터는 유지되지만 필터에서 사라집니다.`)) {
+        if(confirm(`${familyMembers[i]}님을 정말 삭제하시겠습니까?`)) {
             familyMembers.splice(i, 1);
             save();
         }
@@ -150,26 +161,26 @@
         const table = document.getElementById('baseTable');
         const headH = table.querySelector('thead').offsetHeight;
         const rowH = table.querySelector('td').offsetHeight;
-        const colW = (table.offsetWidth - 50) / 7;
+        const colW = (table.offsetWidth - 45) / 7; // 시간열 폭 45px 제외
 
         dayNames.forEach((day, dIdx) => {
             (schedule[day] || []).forEach((item, i) => {
                 if(currentFilter !== "전체" && item.owner !== currentFilter) return;
                 
-                // 동일 과목 색상 지정
                 if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
                 
                 const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
-                const s = parse(item.start) - (8*60), dur = parse(item.end) - parse(item.start);
+                const s = parse(item.start) - (6*60), dur = parse(item.end) - parse(item.start);
                 
                 let icon = '';
                 for(let key in iconMap) if(item.name.includes(key)) icon = iconMap[key];
 
                 const block = document.createElement('div');
                 block.className = 'class-block';
-                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${50 + dIdx*colW}px; width:${colW - 2}px; background:${colorMap[item.name]};`;
-                block.innerHTML = `<div style="font-size:8px; opacity:0.7">${item.owner}</div><div>${icon}</div><div style="white-space:nowrap">${item.name}</div>`;
-                block.onclick = () => confirm('이 일정을 삭제할까요?') && (schedule[day].splice(i, 1), save());
+                // [수정] 폭 계산 및 위치 정밀 조정
+                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${45 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
+                block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div>${icon}</div><div style="white-space:nowrap">${item.name}</div>`;
+                block.onclick = () => confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save());
                 layer.appendChild(block);
             });
         });
@@ -179,7 +190,7 @@
         const name = document.getElementById('classNameInp').value;
         const sV = document.getElementById('startTime').value, eV = document.getElementById('endTime').value;
         const days = [...document.querySelectorAll('.day-check input:checked')].map(i => i.value);
-        if(!name || sV.length<4 || !days.length) return alert("정보를 입력하고 요일을 선택해주세요.");
+        if(!name || sV.length<4 || eV.length<4 || !days.length) return alert("일정명, 시작/종료 시간, 요일을 모두 확인해주세요.");
         
         days.forEach(d => {
             if(!schedule[d]) schedule[d] = [];
@@ -187,18 +198,18 @@
         });
         save();
         document.getElementById('classNameInp').value = '';
+        document.getElementById('startTime').value = '';
+        document.getElementById('endTime').value = '';
     };
 
     const save = () => db.ref('family_data').set({ schedule, familyMembers });
     db.ref('family_data').on('value', snap => { if(snap.val()) { schedule = snap.val().schedule || {}; familyMembers = snap.val().familyMembers || familyMembers; render(); } });
 
-    // [수정] 엑셀 격자 구조 추출 로직
     const exportExcel = () => {
         const header = ["시간", ...dayNames];
         const rows = [];
-        for(let h=8; h<=22; h++) {
-            const timeStr = `${h}:00`;
-            const row = [timeStr];
+        for(let h=6; h<=22; h++) {
+            const row = [`${h}:00`];
             dayNames.forEach(day => {
                 const items = (schedule[day] || []).filter(it => it.start.startsWith(h.toString().padStart(2, '0')));
                 row.push(items.map(it => `[${it.owner}] ${it.name}`).join('\n'));
@@ -206,20 +217,17 @@
             rows.push(row);
         }
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-        XLSX.utils.book_append_sheet(wb, ws, "가족격자시간표");
-        XLSX.writeFile(wb, `가족시간표_격자_${currentFilter}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...rows]), "시간표");
+        XLSX.writeFile(wb, `가족시간표_${currentFilter}.xlsx`);
     };
 
     const exportPDF = () => {
         const element = document.getElementById('captureArea');
-        const opt = {
+        html2pdf().set({
             margin: 5, filename: `가족시간표_${currentFilter}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 3, useCORS: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-        };
-        html2pdf().set(opt).from(element).save();
+        }).from(element).save();
     };
 
     init();
