@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V3.9</title>
+    <title>우리 가족 스마트 시간표 V4.0</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -19,7 +19,6 @@
         .nav-btn { background: #F1F3F5; border: none; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
         .nav-btn.primary { background: var(--p-color); color: white; }
 
-        /* 입력 패널 구성 최적화 */
         .input-panel { background: #fff; padding: 12px; border-bottom: 1px solid var(--brd); flex-shrink: 0; }
         .input-group { display: flex; gap: 6px; margin-bottom: 10px; }
         .inp-name { flex: 1.5; padding: 12px; border: 2px solid #DEE2E6; border-radius: 10px; font-size: 14px; outline: none; }
@@ -30,19 +29,29 @@
         .day-check input { display: none; }
         .day-check:has(input:checked) { background: #A29BFE; color: white; }
 
-        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; padding: 0; } /* 패딩 제거로 폭 맞춤 */
-        .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; border: none; }
-        .timetable th { background: #F1F3F5; font-size: 12px; height: 40px; border: 1px solid var(--brd); position: sticky; top: 0; z-index: 20; }
-        .time-col { width: 45px; font-size: 11px; color: #ADB5BD; text-align: center; border: 1px solid var(--brd); }
+        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; }
+        .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .timetable th { background: #F1F3F5; font-size: 12px; height: 40px; border: 1px solid var(--brd); position: sticky; top: 0; z-index: 50; }
+        .time-col { width: 45px; font-size: 10px; color: #ADB5BD; text-align: center; border: 1px solid var(--brd); }
         .timetable td { height: 45px; border: 1px solid var(--brd); }
 
         #blockLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
         .class-block { 
-            position: absolute; pointer-events: auto; border-radius: 0; /* 칸에 맞추기 위해 둥글기 제거 가능 */
+            position: absolute; pointer-events: auto;
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            padding: 2px; font-weight: 800; font-size: 11px; text-align: center; 
-            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.3); 
-            line-height: 1.1; overflow: visible !important;
+            padding: 2px; font-weight: 800; font-size: 10px; text-align: center; 
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.4); 
+            line-height: 1.1; overflow: hidden;
+        }
+
+        /* 오늘 시각 표시 빨간 라인 */
+        #nowLine { 
+            position: absolute; left: 45px; right: 0; height: 2px; background: #FF7675; 
+            z-index: 60; pointer-events: none; 
+        }
+        #nowLine::before { 
+            content: ''; position: absolute; left: -5px; top: -4px; 
+            width: 10px; height: 10px; background: #FF7675; border-radius: 50%; 
         }
 
         .export-area { padding: 10px; display: flex; gap: 8px; background: #fff; border-top: 1px solid var(--brd); }
@@ -50,6 +59,7 @@
 
         #memberModal { display: none; position: fixed; top: 0; left: 0; width: 260px; background: white; height: 100%; z-index: 2000; padding: 25px; box-shadow: 10px 0 20px rgba(0,0,0,0.1); }
         .member-item { display: flex; justify-content: space-between; align-items: center; background: #F1F3F5; margin-bottom: 10px; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; }
+        .member-item.active { background: var(--p-color); color: white; }
     </style>
 </head>
 <body>
@@ -64,14 +74,7 @@
         <div class="input-group">
             <input type="text" id="classNameInp" class="inp-name" list="defaultSchedules" placeholder="일정명">
             <datalist id="defaultSchedules">
-                <option value="학교">
-                <option value="수영">
-                <option value="구몬">
-                <option value="피아노">
-                <option value="축구">
-                <option value="수학">
-                <option value="영어">
-                <option value="미술">
+                <option value="학교"> <option value="수영"> <option value="구몬"> <option value="피아노"> <option value="축구">
             </datalist>
             <input type="text" id="startTime" class="inp-time" placeholder="시작(0900)" maxlength="4">
             <input type="text" id="endTime" class="inp-time" placeholder="종료(1030)" maxlength="4">
@@ -84,7 +87,9 @@
             <thead><tr id="dayHeaders"></tr></thead>
             <tbody id="timetableBody"></tbody>
         </table>
-        <div id="blockLayer"></div>
+        <div id="blockLayer">
+            <div id="nowLine"></div>
+        </div>
     </div>
 
     <div class="export-area">
@@ -100,7 +105,6 @@
     </div>
 
 <script>
-    // 파이어베이스 설정
     const firebaseConfig = {
         apiKey: "AIzaSyD8Lu75Q9T4Uu0OA_2fXpKLh3t6z04H6yg",
         authDomain: "family-scheduler-f61ee.firebaseapp.com",
@@ -115,18 +119,85 @@
 
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
     const colorPalette = ['#D1BAFF', '#B2E2F2', '#FFBEBC', '#FFF5BA', '#ABF7B1', '#E2F0CB', '#FFCCF9', '#C7CEEA'];
-    let colorMap = {};
-    const iconMap = { '학교': '🏫', '피아노': '🎹', '축구': '⚽', '구몬': '📑', '수학': '🔢', '영어': '🔤', '수영': '🏊', '미술': '🎨' };
-    
-    let schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
+    let colorMap = {}, schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
 
     const init = () => {
         document.getElementById('dayHeaders').innerHTML = '<th class="time-col">시간</th>' + dayNames.map(d => `<th>${d}</th>`).join('');
         document.getElementById('daySelector').innerHTML = dayNames.map(d => `<label class="day-check"><input type="checkbox" value="${d}"> ${d}</label>`).join('');
         let html = '';
-        // [수정] 06시부터 시작하도록 변경
         for(let h=6; h<=22; h++) html += `<tr><td class="time-col">${h}:00</td>${'<td></td>'.repeat(7)}</tr>`;
         document.getElementById('timetableBody').innerHTML = html;
+        updateNowLine();
+        setInterval(updateNowLine, 60000); // 1분마다 라인 업데이트
+    };
+
+    const updateNowLine = () => {
+        const now = new Date();
+        const hour = now.getHours(), min = now.getMinutes();
+        if(hour < 6 || hour > 22) { document.getElementById('nowLine').style.display = 'none'; return; }
+        
+        document.getElementById('nowLine').style.display = 'block';
+        const table = document.getElementById('baseTable');
+        const headH = table.querySelector('thead').offsetHeight;
+        const rowH = table.querySelector('td').offsetHeight;
+        
+        const top = headH + ((hour - 6) * rowH) + (min / 60 * rowH);
+        document.getElementById('nowLine').style.top = top + 'px';
+        render(); // 시간에 따라 투명도 실시간 업데이트
+    };
+
+    const render = () => {
+        const layer = document.getElementById('blockLayer');
+        const nowLine = document.getElementById('nowLine');
+        layer.innerHTML = ''; layer.appendChild(nowLine);
+        
+        const table = document.getElementById('baseTable');
+        const headH = table.querySelector('thead').offsetHeight, rowH = table.querySelector('td').offsetHeight;
+        const colW = (table.offsetWidth - 45) / 7;
+        
+        const now = new Date();
+        const currentDayIdx = (now.getDay() + 6) % 7; // 월요일=0
+        const currentTotalMin = now.getHours() * 60 + now.getMinutes();
+
+        dayNames.forEach((day, dIdx) => {
+            (schedule[day] || []).forEach((item, i) => {
+                if(currentFilter !== "전체" && item.owner !== currentFilter) return;
+                if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
+                
+                const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
+                const startMin = parse(item.start), endMin = parse(item.end);
+                const s = startMin - (6*60), dur = endMin - startMin;
+
+                const block = document.createElement('div');
+                block.className = 'class-block';
+                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${45 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
+                
+                // 투명도 로직
+                if(dIdx !== currentDayIdx) {
+                    block.style.opacity = "0.2"; // 오늘 외 요일 80% 투명
+                } else if (endMin < currentTotalMin) {
+                    block.style.opacity = "0.5"; // 오늘 중 지난 일정 50% 투명
+                }
+
+                block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div style="white-space:nowrap">${item.name}</div>`;
+                block.onclick = () => confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save());
+                layer.appendChild(block);
+            });
+        });
+    };
+
+    const addSchedule = () => {
+        const name = document.getElementById('classNameInp').value;
+        const sV = document.getElementById('startTime').value, eV = document.getElementById('endTime').value;
+        const days = [...document.querySelectorAll('.day-check input:checked')].map(i => i.value);
+        if(!name || sV.length<4 || eV.length<4 || !days.length) return alert("입력 정보를 확인해주세요.");
+        
+        days.forEach(d => {
+            if(!schedule[d]) schedule[d] = [];
+            schedule[d].push({ name, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, owner: currentFilter });
+        });
+        save();
+        document.getElementById('classNameInp').value = ''; document.getElementById('startTime').value = ''; document.getElementById('endTime').value = '';
     };
 
     const toggleMenu = (s) => { 
@@ -138,70 +209,17 @@
     const renderMembers = () => {
         let h = `<div class="member-item ${currentFilter==='전체'?'active':''}" onclick="setFilter('전체')">전체보기</div>`;
         familyMembers.forEach((m, i) => {
-            h += `<div class="member-item">
+            h += `<div class="member-item ${currentFilter===m?'active':''}">
                     <span onclick="setFilter('${m}')" style="flex:1">${m}</span>
-                    <button onclick="deleteMember(${i})" style="border:none; color:red; background:none; font-size:11px;">삭제</button>
+                    <button onclick="deleteMember(${i})" style="border:none; color:red; background:none;">삭제</button>
                   </div>`;
         });
         document.getElementById('memberList').innerHTML = h;
     };
 
-    const deleteMember = (i) => {
-        if(confirm(`${familyMembers[i]}님을 정말 삭제하시겠습니까?`)) {
-            familyMembers.splice(i, 1);
-            save();
-        }
-    };
-
+    const deleteMember = (i) => { if(confirm(`${familyMembers[i]}님을 삭제할까요?`)) { familyMembers.splice(i, 1); save(); } };
     const setFilter = (n) => { currentFilter = n; document.getElementById('viewStatus').innerText = n; toggleMenu(false); render(); };
-
-    const render = () => {
-        const layer = document.getElementById('blockLayer');
-        layer.innerHTML = '';
-        const table = document.getElementById('baseTable');
-        const headH = table.querySelector('thead').offsetHeight;
-        const rowH = table.querySelector('td').offsetHeight;
-        const colW = (table.offsetWidth - 45) / 7; // 시간열 폭 45px 제외
-
-        dayNames.forEach((day, dIdx) => {
-            (schedule[day] || []).forEach((item, i) => {
-                if(currentFilter !== "전체" && item.owner !== currentFilter) return;
-                
-                if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
-                
-                const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
-                const s = parse(item.start) - (6*60), dur = parse(item.end) - parse(item.start);
-                
-                let icon = '';
-                for(let key in iconMap) if(item.name.includes(key)) icon = iconMap[key];
-
-                const block = document.createElement('div');
-                block.className = 'class-block';
-                // [수정] 폭 계산 및 위치 정밀 조정
-                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${45 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
-                block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div>${icon}</div><div style="white-space:nowrap">${item.name}</div>`;
-                block.onclick = () => confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save());
-                layer.appendChild(block);
-            });
-        });
-    };
-
-    const addSchedule = () => {
-        const name = document.getElementById('classNameInp').value;
-        const sV = document.getElementById('startTime').value, eV = document.getElementById('endTime').value;
-        const days = [...document.querySelectorAll('.day-check input:checked')].map(i => i.value);
-        if(!name || sV.length<4 || eV.length<4 || !days.length) return alert("일정명, 시작/종료 시간, 요일을 모두 확인해주세요.");
-        
-        days.forEach(d => {
-            if(!schedule[d]) schedule[d] = [];
-            schedule[d].push({ name, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, owner: currentFilter });
-        });
-        save();
-        document.getElementById('classNameInp').value = '';
-        document.getElementById('startTime').value = '';
-        document.getElementById('endTime').value = '';
-    };
-
+    const addMember = () => { const n = prompt("이름:"); if(n) { familyMembers.push(n); save(); } };
     const save = () => db.ref('family_data').set({ schedule, familyMembers });
     db.ref('family_data').on('value', snap => { if(snap.val()) { schedule = snap.val().schedule || {}; familyMembers = snap.val().familyMembers || familyMembers; render(); } });
 
