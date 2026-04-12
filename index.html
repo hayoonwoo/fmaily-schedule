@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V4.2</title>
+    <title>우리 가족 스마트 시간표 V4.3</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -29,13 +29,15 @@
         .day-check input { display: none; }
         .day-check:has(input:checked) { background: #A29BFE; color: white; border-color: #A29BFE; }
 
-        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; }
+        /* [수정] 좌우 5% 여백 추가 */
+        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; padding: 0 5%; }
         .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .timetable th { background: #F1F3F5; font-size: 11px; height: 35px; border: 1px solid var(--brd); position: sticky; top: 0; z-index: 50; }
         .time-col { width: 42px; font-size: 10px; color: #ADB5BD; text-align: center; border: 1px solid var(--brd); }
         .timetable td { height: 45px; border: 1px solid var(--brd); }
 
-        #blockLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
+        /* [수정] 블록 레이어도 컨테이너 패딩 안쪽에 위치하도록 조정 */
+        #blockLayer { position: absolute; top: 0; left: 5%; right: 5%; height: 100%; pointer-events: none; z-index: 25; }
         .class-block { 
             position: absolute; pointer-events: auto;
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
@@ -44,16 +46,8 @@
             line-height: 1.1; overflow: hidden;
         }
 
-        /* [수정] 오늘 요일 칸에만 표시되는 시간 라인 */
-        #nowLine { 
-            position: absolute; height: 2px; background: #FF7675; 
-            z-index: 60; pointer-events: none; 
-            transition: all 0.3s ease;
-        }
-        #nowLine::before { 
-            content: ''; position: absolute; left: -3px; top: -3px; 
-            width: 8px; height: 8px; background: #FF7675; border-radius: 50%; 
-        }
+        #nowLine { position: absolute; height: 2px; background: #FF7675; z-index: 60; pointer-events: none; transition: all 0.3s ease; }
+        #nowLine::before { content: ''; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; background: #FF7675; border-radius: 50%; }
 
         .export-area { padding: 10px; display: flex; gap: 8px; background: #fff; border-top: 1px solid var(--brd); }
         .export-btn { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #DEE2E6; background: #fff; font-size: 12px; font-weight: 800; }
@@ -126,7 +120,7 @@
         for(let h=6; h<=22; h++) html += `<tr><td class="time-col">${h}:00</td>${'<td></td>'.repeat(7)}</tr>`;
         document.getElementById('timetableBody').innerHTML = html;
         
-        setInterval(updateNowLine, 30000); // 30초마다 갱신
+        setInterval(updateNowLine, 30000);
         updateNowLine();
     };
 
@@ -134,7 +128,7 @@
         const now = new Date();
         const hour = now.getHours(), min = now.getMinutes();
         const line = document.getElementById('nowLine');
-        const currentDayIdx = (now.getDay() + 6) % 7; // 월=0, 일=6
+        const currentDayIdx = (now.getDay() + 6) % 7;
 
         if(hour < 6 || hour > 22) { line.style.display = 'none'; return; }
         
@@ -144,7 +138,6 @@
         const colW = (table.offsetWidth - 42) / 7;
 
         line.style.display = 'block';
-        // [수정] 오늘 요일 칸(Column) 안에서만 보이도록 위치와 폭 설정
         line.style.top = (headH + ((hour - 6) * rowH) + (min / 60 * rowH)) + 'px';
         line.style.left = (42 + currentDayIdx * colW) + 'px';
         line.style.width = colW + 'px';
@@ -176,9 +169,9 @@
 
                 const block = document.createElement('div');
                 block.className = 'class-block';
+                // [수정] 레이어 자체가 5% 오프셋되어 있으므로 추가 오프셋 불필요
                 block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${42 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
                 
-                // 오늘 외 요일은 투명도 80% (0.2), 오늘 중 지난 일정은 투명도 50% (0.5)
                 if(dIdx !== currentDayIdx) block.style.opacity = "0.2";
                 else if (endMin < currentTotalMin) block.style.opacity = "0.5";
 
