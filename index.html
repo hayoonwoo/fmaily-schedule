@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V4.4</title>
+    <title>우리 가족 스마트 시간표 V4.5</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
@@ -29,14 +30,12 @@
         .day-check input { display: none; }
         .day-check:has(input:checked) { background: #A29BFE; color: white; border-color: #A29BFE; }
 
-        /* 시간표 영역: 좌우 5% 여백 유지 */
         .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; padding: 0 5%; }
         .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; position: relative; }
         .timetable th { background: #F1F3F5; font-size: 11px; height: 35px; border: 1px solid var(--brd); position: sticky; top: 0; z-index: 50; }
         .time-col { width: 42px; font-size: 10px; color: #ADB5BD; text-align: center; border: 1px solid var(--brd); }
         .timetable td { height: 45px; border: 1px solid var(--brd); }
 
-        /* 블록 레이어: 테이블과 완벽히 겹치도록 설정 */
         #blockLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
         .class-block { 
             position: absolute; pointer-events: auto;
@@ -76,8 +75,8 @@
         <div id="daySelector" class="day-selector"></div>
     </div>
 
-    <div class="timetable-container" id="captureArea">
-        <div id="tableWrapper" style="position: relative;">
+    <div class="timetable-container">
+        <div id="tableWrapper" style="position: relative; background: #fff;">
             <table class="timetable" id="baseTable">
                 <thead><tr id="dayHeaders"></tr></thead>
                 <tbody id="timetableBody"></tbody>
@@ -87,8 +86,8 @@
     </div>
 
     <div class="export-area">
-        <button class="export-btn" onclick="exportExcel()">📊 Excel 추출</button>
-        <button class="export-btn" onclick="exportPDF()">📄 PDF 저장</button>
+        <button class="export-btn" onclick="exportExcel()">📊 엑셀(${currentFilter})</button>
+        <button class="export-btn" onclick="exportPDF()">📸 화면캡쳐 PDF</button>
     </div>
 
     <div id="overlay" onclick="toggleMenu(false)" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1500;"></div>
@@ -122,7 +121,7 @@
         for(let h=6; h<=22; h++) html += `<tr><td class="time-col">${h}:00</td>${'<td></td>'.repeat(7)}</tr>`;
         document.getElementById('timetableBody').innerHTML = html;
         
-        window.addEventListener('resize', render); // 가로/세로 전환 시 즉시 재배치
+        window.addEventListener('resize', render);
         setInterval(updateNowLine, 30000);
         updateNowLine();
     };
@@ -133,18 +132,19 @@
         const line = document.getElementById('nowLine');
         const currentDayIdx = (now.getDay() + 6) % 7;
 
-        if(hour < 6 || hour > 22) { line.style.display = 'none'; return; }
+        if(hour < 6 || hour > 22) { if(line) line.style.display = 'none'; return; }
         
         const table = document.getElementById('baseTable');
         const headH = table.querySelector('thead').offsetHeight;
         const rowH = table.querySelector('td').offsetHeight;
         const colW = (table.offsetWidth - 42) / 7;
 
-        line.style.display = 'block';
-        line.style.top = (headH + ((hour - 6) * rowH) + (min / 60 * rowH)) + 'px';
-        line.style.left = (42 + currentDayIdx * colW) + 'px';
-        line.style.width = colW + 'px';
-        
+        if(line) {
+            line.style.display = 'block';
+            line.style.top = (headH + ((hour - 6) * rowH) + (min / 60 * rowH)) + 'px';
+            line.style.left = (42 + currentDayIdx * colW) + 'px';
+            line.style.width = colW + 'px';
+        }
         render(); 
     };
 
@@ -155,7 +155,7 @@
         if(nowLine) layer.appendChild(nowLine);
         
         const table = document.getElementById('baseTable');
-        if(!table.offsetWidth) return; // 화면에 안보일 때 계산 방지
+        if(!table.offsetWidth) return;
 
         const headH = table.querySelector('thead').offsetHeight;
         const firstCell = table.querySelector('tbody td:nth-child(2)');
@@ -168,16 +168,18 @@
 
         dayNames.forEach((day, dIdx) => {
             (schedule[day] || []).forEach((item, i) => {
+                // [필터링 핵심] 현재 선택된 구성원의 일정만 렌더링
                 if(currentFilter !== "전체" && item.owner !== currentFilter) return;
+                
                 if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
                 
                 const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
                 const startMin = parse(item.start), endMin = parse(item.end);
-                const s = startMin - (6*60), dur = endMin - startMin;
+                const s = startMin - (6*60);
+                const dur = endMin - startMin;
 
                 const block = document.createElement('div');
                 block.className = 'class-block';
-                // [수정] 정확한 좌표 계산을 위해 nth-child와 rowH 사용
                 block.style.top = (headH + (s/60)*rowH) + "px";
                 block.style.height = (dur/60)*rowH + "px";
                 block.style.left = (42 + dIdx * colW) + "px";
@@ -192,6 +194,9 @@
                 layer.appendChild(block);
             });
         });
+        
+        // 버튼 텍스트 업데이트
+        document.querySelectorAll('.export-btn')[0].innerText = `📊 엑셀(${currentFilter})`;
     };
 
     const addSchedule = () => {
@@ -202,7 +207,12 @@
         
         days.forEach(d => {
             if(!schedule[d]) schedule[d] = [];
-            schedule[d].push({ name, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, owner: currentFilter });
+            schedule[d].push({ 
+                name, 
+                start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, 
+                end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, 
+                owner: currentFilter === "전체" ? familyMembers[0] : currentFilter 
+            });
         });
         save();
         document.getElementById('classNameInp').value = ''; document.getElementById('startTime').value = ''; document.getElementById('endTime').value = '';
@@ -231,7 +241,7 @@
     const save = () => db.ref('family_data').set({ schedule, familyMembers });
     db.ref('family_data').on('value', snap => { if(snap.val()) { schedule = snap.val().schedule || {}; familyMembers = snap.val().familyMembers || familyMembers; render(); } });
 
-    // [수정] 엑셀 추출: 본문 데이터만 정교하게 매핑
+    // [개선] 엑셀 추출: 현재 필터링된 구성원의 스케줄만 시트화
     const exportExcel = () => {
         const header = ["시간", ...dayNames];
         const dataRows = [];
@@ -240,7 +250,8 @@
             dayNames.forEach(day => {
                 const items = (schedule[day] || []).filter(it => {
                     const hStart = parseInt(it.start.split(':')[0]);
-                    return hStart === h;
+                    const isOwner = (currentFilter === "전체" || it.owner === currentFilter);
+                    return hStart === h && isOwner;
                 });
                 row.push(items.map(it => `[${it.owner}] ${it.name}(${it.start}-${it.end})`).join('\n'));
             });
@@ -248,22 +259,25 @@
         }
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
-        ws['!cols'] = [{wch:10}, ...Array(7).fill({wch:20})]; // 열 너비 조정
+        ws['!cols'] = [{wch:10}, ...Array(7).fill({wch:20})];
         XLSX.utils.book_append_sheet(wb, ws, "가족시간표");
         XLSX.writeFile(wb, `우리집_시간표_${currentFilter}.xlsx`);
     };
 
-    // [수정] PDF 추출: 시간표 영역(#tableWrapper)만 A4 맞춤 추출
-    const exportPDF = () => {
+    // [변경] PDF 추출: 화면 캡처(Canvas) 방식으로 구현
+    const exportPDF = async () => {
         const element = document.getElementById('tableWrapper');
-        const opt = {
-            margin: 10,
-            filename: `가족시간표_${currentFilter}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-        };
-        html2pdf().set(opt).from(element).save();
+        const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL('image/png');
+        
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('l', 'mm', 'a4'); // 가로 모드 A4
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        pdf.addImage(imgData, 'PNG', 10, 10, pdfWidth, pdfHeight);
+        pdf.save(`시간표캡쳐_${currentFilter}.pdf`);
     };
 
     init();
