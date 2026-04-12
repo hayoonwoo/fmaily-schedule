@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V4.7</title>
+    <title>우리 가족 스마트 시간표 V4.9</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
@@ -19,6 +17,7 @@
         .top-nav { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--brd); z-index: 1000; }
         .nav-btn { background: #F1F3F5; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
         .nav-btn.primary { background: var(--p-color); color: white; }
+        .nav-btn.alarm { background: #FF7675; color: white; }
 
         .input-panel { background: #fff; padding: 10px; border-bottom: 1px solid var(--brd); flex-shrink: 0; }
         .input-group { display: flex; gap: 4px; margin-bottom: 8px; }
@@ -60,6 +59,7 @@
     <nav class="top-nav">
         <button class="nav-btn" onclick="toggleMenu(true)">👨‍👩‍👧‍👦 가족</button>
         <div id="viewStatus" style="font-weight: 800; color: #0984E3; font-size: 14px;">전체보기</div>
+        <button class="nav-btn alarm" id="alarmBtn" onclick="requestNoti()">🔔 알람설정</button>
         <button class="nav-btn primary" onclick="addSchedule()">저장</button>
     </nav>
 
@@ -76,7 +76,7 @@
     </div>
 
     <div class="timetable-container" id="scrollContainer">
-        <div id="tableWrapper" style="position: relative; background: #fff; min-width: 320px;">
+        <div id="tableWrapper" style="position: relative; background: #fff;">
             <table class="timetable" id="baseTable">
                 <thead><tr id="dayHeaders"></tr></thead>
                 <tbody id="timetableBody"></tbody>
@@ -86,8 +86,7 @@
     </div>
 
     <div class="export-area">
-        <button class="export-btn" onclick="exportExcel()">📊 엑셀(30분단위)</button>
-        <button class="export-btn" onclick="exportPDF()">📸 전체캡쳐 PDF</button>
+        <button class="export-btn" onclick="exportExcel()">📊 엑셀추출(색상/병합)</button>
     </div>
 
     <div id="overlay" onclick="toggleMenu(false)" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1500;"></div>
@@ -113,6 +112,7 @@
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
     const colorPalette = ['#D1BAFF', '#B2E2F2', '#FFBEBC', '#FFF5BA', '#ABF7B1', '#E2F0CB', '#FFCCF9', '#C7CEEA'];
     let colorMap = {}, schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
+    let notifiedItems = new Set(); // 중복 알림 방지
 
     const init = () => {
         document.getElementById('dayHeaders').innerHTML = '<th class="time-col">시간</th>' + dayNames.map(d => `<th>${d}</th>`).join('');
@@ -122,35 +122,29 @@
         document.getElementById('timetableBody').innerHTML = html;
         
         window.addEventListener('resize', render);
-        setInterval(render, 30000);
+        setInterval(() => { render(); checkAlarms(); }, 30000);
         render();
     };
 
     const render = () => {
         const layer = document.getElementById('blockLayer');
         const nowLine = document.getElementById('nowLine');
-        layer.innerHTML = ''; 
-        if(nowLine) layer.appendChild(nowLine);
+        layer.innerHTML = ''; if(nowLine) layer.appendChild(nowLine);
         
         const table = document.getElementById('baseTable');
         if(!table.offsetWidth) return;
 
         const headH = table.querySelector('thead').offsetHeight;
-        const firstCell = table.querySelector('tbody td:nth-child(2)');
-        const rowH = firstCell.offsetHeight;
-        const colW = firstCell.offsetWidth;
-        
+        const rowH = table.querySelector('tbody td').offsetHeight;
+        const colW = table.querySelector('tbody td:nth-child(2)').offsetWidth;
         const now = new Date();
-        const currentDayIdx = (now.getDay() + 6) % 7;
 
         if(now.getHours() >= 6 && now.getHours() <= 22) {
             nowLine.style.display = 'block';
             nowLine.style.top = (headH + ((now.getHours() - 6) * rowH) + (now.getMinutes() / 60 * rowH)) + 'px';
-            nowLine.style.left = (42 + currentDayIdx * colW) + 'px';
+            nowLine.style.left = (42 + ((now.getDay() + 6) % 7) * colW) + 'px';
             nowLine.style.width = colW + 'px';
-        } else {
-            nowLine.style.display = 'none';
-        }
+        } else { nowLine.style.display = 'none'; }
 
         dayNames.forEach((day, dIdx) => {
             (schedule[day] || []).forEach((item, i) => {
@@ -158,21 +152,96 @@
                 if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
                 
                 const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
-                const startMin = parse(item.start), endMin = parse(item.end);
-                const s = startMin - (6*60), dur = endMin - startMin;
+                const s = parse(item.start) - 360, dur = parse(item.end) - parse(item.start);
 
                 const block = document.createElement('div');
                 block.className = 'class-block';
                 block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${42 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
-                
-                if(dIdx !== currentDayIdx) block.style.opacity = "0.2";
-                else if (endMin < (now.getHours()*60 + now.getMinutes())) block.style.opacity = "0.5";
-
-                block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div style="white-space:nowrap; overflow:hidden;">${item.name}</div>`;
+                block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div>${item.name}</div>`;
                 block.onclick = () => confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save());
                 layer.appendChild(block);
             });
         });
+    };
+
+    // 알람 설정 기능
+    const requestNoti = () => {
+        Notification.requestPermission().then(perm => {
+            if(perm === "granted") {
+                alert("알람 설정이 완료되었습니다. 일정 시작 10분 전에 알려드릴게요!");
+                document.getElementById('alarmBtn').innerText = "🔔 알람 작동중";
+            }
+        });
+    };
+
+    const checkAlarms = () => {
+        if(Notification.permission !== "granted") return;
+        const now = new Date();
+        const curDay = dayNames[(now.getDay() + 6) % 7];
+        const curTotal = now.getHours() * 60 + now.getMinutes();
+
+        (schedule[curDay] || []).forEach(item => {
+            if(currentFilter !== "전체" && item.owner !== currentFilter) return;
+            const startTotal = item.start.split(':').reduce((h,m)=>h*60+(+m),0);
+            const diff = startTotal - curTotal;
+            const alarmKey = `${item.owner}_${item.name}_${item.start}`;
+
+            if(diff === 10 && !notifiedItems.has(alarmKey)) {
+                new Notification(`[가족 시간표] 시작 10분 전!`, {
+                    body: `${item.owner}님의 '${item.name}' 일정이 ${item.start}에 시작됩니다.`
+                });
+                notifiedItems.add(alarmKey);
+            }
+        });
+    };
+
+    // 엑셀 추출: 셀 병합 & 색상 (반올림 방식)
+    const exportExcel = () => {
+        const header = ["시간", ...dayNames];
+        const dataRows = [];
+        const merges = [];
+
+        // 6시부터 22시까지 1시간 단위로 구성
+        for(let h=6; h<=22; h++) {
+            const timeStr = `${h.toString().padStart(2,'0')}:00`;
+            const row = [timeStr];
+            dayNames.forEach((day, dIdx) => {
+                const items = (schedule[day] || []).filter(it => {
+                    const startH = parseInt(it.start.split(':')[0]);
+                    const endH = parseInt(it.end.split(':')[1]) > 0 ? parseInt(it.end.split(':')[0]) + 1 : parseInt(it.end.split(':')[0]);
+                    return h >= startH && h < endH && (currentFilter === "전체" || it.owner === currentFilter);
+                });
+                row.push(items.length > 0 ? `[${items[0].owner}] ${items[0].name}` : "");
+            });
+            dataRows.push(row);
+        }
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+
+        // 셀 병합 로직 (동일한 내용의 세로 셀 병합)
+        dayNames.forEach((day, dIdx) => {
+            let startRow = -1;
+            for(let r=1; r<dataRows.length; r++) {
+                const colIdx = dIdx + 1;
+                const currentVal = dataRows[r][colIdx];
+                const prevVal = r > 0 ? dataRows[r-1][colIdx] : null;
+
+                if(currentVal !== "" && currentVal === prevVal) {
+                    if(startRow === -1) startRow = r;
+                } else {
+                    if(startRow !== -1) {
+                        merges.push({ s: {r: startRow, c: colIdx}, e: {r: r, c: colIdx} });
+                        startRow = -1;
+                    }
+                }
+            }
+        });
+        ws['!merges'] = merges;
+        ws['!cols'] = [{wch:10}, ...Array(7).fill({wch:20})];
+        
+        XLSX.utils.book_append_sheet(wb, ws, "시간표");
+        XLSX.writeFile(wb, `가족시간표_${currentFilter}.xlsx`);
     };
 
     const addSchedule = () => {
@@ -180,18 +249,11 @@
         const sV = document.getElementById('startTime').value, eV = document.getElementById('endTime').value;
         const days = [...document.querySelectorAll('.day-check input:checked')].map(i => i.value);
         if(!name || sV.length<4 || eV.length<4 || !days.length) return alert("정보를 모두 입력해주세요.");
-        
         days.forEach(d => {
             if(!schedule[d]) schedule[d] = [];
-            schedule[d].push({ 
-                name, 
-                start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, 
-                end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, 
-                owner: currentFilter === "전체" ? familyMembers[0] : currentFilter 
-            });
+            schedule[d].push({ name, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, owner: currentFilter === "전체" ? familyMembers[0] : currentFilter });
         });
         save();
-        document.getElementById('classNameInp').value = ''; document.getElementById('startTime').value = ''; document.getElementById('endTime').value = '';
     };
 
     const toggleMenu = (s) => { 
@@ -202,89 +264,15 @@
 
     const renderMembers = () => {
         let h = `<div class="member-item" onclick="setFilter('전체')">전체보기</div>`;
-        familyMembers.forEach((m, i) => {
-            h += `<div class="member-item">
-                    <span onclick="setFilter('${m}')" style="flex:1">${m}</span>
-                    <button onclick="deleteMember(${i})" style="border:none; color:red; background:none;">삭제</button>
-                  </div>`;
-        });
+        familyMembers.forEach((m, i) => { h += `<div class="member-item"><span onclick="setFilter('${m}')" style="flex:1">${m}</span><button onclick="deleteMember(${i})" style="border:none; color:red; background:none;">삭제</button></div>`; });
         document.getElementById('memberList').innerHTML = h;
     };
 
-    const deleteMember = (i) => { if(confirm(`${familyMembers[i]}님을 삭제할까요?`)) { familyMembers.splice(i, 1); save(); } };
     const setFilter = (n) => { currentFilter = n; document.getElementById('viewStatus').innerText = n; toggleMenu(false); render(); };
     const addMember = () => { const n = prompt("이름:"); if(n) { familyMembers.push(n); save(); } };
+    const deleteMember = (i) => { if(confirm(`${familyMembers[i]}님을 삭제할까요?`)) { familyMembers.splice(i, 1); save(); } };
     const save = () => db.ref('family_data').set({ schedule, familyMembers });
     db.ref('family_data').on('value', snap => { if(snap.val()) { schedule = snap.val().schedule || {}; familyMembers = snap.val().familyMembers || familyMembers; render(); } });
-
-    // [수정] 엑셀: 30분 단위 세분화 + 배경색 적용
-    const exportExcel = () => {
-        const header = ["시간", ...dayNames];
-        const dataRows = [];
-        const styles = [];
-
-        for(let h=6; h<=22; h++) {
-            [0, 30].forEach(m => {
-                const timeStr = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
-                const row = [timeStr];
-                const rowColors = [null];
-
-                dayNames.forEach(day => {
-                    const currentTotal = h * 60 + m;
-                    const items = (schedule[day] || []).filter(it => {
-                        const sMin = it.start.split(':').reduce((h,m)=>h*60+(+m),0);
-                        const eMin = it.end.split(':').reduce((h,m)=>h*60+(+m),0);
-                        const isOwner = (currentFilter === "전체" || it.owner === currentFilter);
-                        return currentTotal >= sMin && currentTotal < eMin && isOwner;
-                    });
-                    
-                    if(items.length > 0) {
-                        row.push(`[${items[0].owner}] ${items[0].name}`);
-                        rowColors.push(colorMap[items[0].name]?.replace('#',''));
-                    } else {
-                        row.push(""); rowColors.push(null);
-                    }
-                });
-                dataRows.push(row);
-                styles.push(rowColors);
-            });
-        }
-
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
-        
-        // 간단한 색상 정보는 엑셀 라이브러리 사양에 따라 커스텀 스타일이 필요하므로 서식을 지정
-        ws['!cols'] = [{wch:8}, ...Array(7).fill({wch:15})];
-        XLSX.utils.book_append_sheet(wb, ws, "30분단위_시간표");
-        XLSX.writeFile(wb, `가족시간표_${currentFilter}.xlsx`);
-    };
-
-    // [수정] PDF: 보이지 않는 영역까지 전체 높이 캡처
-    const exportPDF = async () => {
-        const element = document.getElementById('tableWrapper');
-        
-        // 캡처를 위해 임시로 스타일 조정 (전체 영역 확보)
-        const originalStyle = element.style.cssText;
-        element.style.width = "1200px"; // 캡처 시 가로 해상도 고정
-        
-        const canvas = await html2canvas(element, { 
-            scale: 2, 
-            useCORS: true,
-            windowWidth: 1200,
-            windowHeight: element.scrollHeight 
-        });
-        
-        element.style.cssText = originalStyle; // 스타일 복구
-        const imgData = canvas.toDataURL('image/png');
-        
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('l', 'mm', 'a4');
-        const pdfW = pdf.internal.pageSize.getWidth() - 20;
-        const pdfH = (canvas.height * pdfW) / canvas.width;
-        
-        pdf.addImage(imgData, 'PNG', 10, 10, pdfW, pdfH);
-        pdf.save(`시간표_전체캡쳐_${currentFilter}.pdf`);
-    };
 
     init();
 </script>
