@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>우리 가족 스마트 스케줄러</title>
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#f8f9fc">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2693/2693507.png">
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root { --p-color: #a0c4ff; --bg: #f8f9fc; --brd: #e9ecef; --txt: #495057; --now: #ff6b6b; --header-h: 50px; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { height: 100%; margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: var(--txt); overflow: hidden; }
+        
+        /* 상단 바 전용 스타일 */
+        .top-nav { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--brd); z-index: 1000; position: relative; }
+        .nav-btn { background: #f1f3f5; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: bold; color: var(--txt); cursor: pointer; }
+        .nav-btn.primary { background: var(--p-color); color: white; }
+
+        /* 메인 컨테이너 */
+        .main-wrapper { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+        
+        /* 입력 패널 */
+        .input-panel { background: #fff; padding: 10px; border-bottom: 1.5px solid var(--brd); z-index: 100; flex-shrink: 0; }
+        .input-group { display: flex; gap: 6px; margin-bottom: 8px; }
+        .dropdown-container { position: relative; flex: 2; }
+        .inp-name, .inp-time { width: 100%; padding: 10px 8px; border: 1.5px solid #dee2e6; border-radius: 8px; font-size: 14px; outline: none; }
+        
+        .class-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1.5px solid #dee2e6; border-radius: 8px; max-height: 150px; overflow-y: auto; display: none; z-index: 1100; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .class-item { padding: 10px 12px; border-bottom: 1px solid #f1f3f5; font-size: 14px; }
+
+        /* 요일 선택 */
+        .day-selector { display: flex; gap: 4px; overflow-x: auto; }
+        .day-check { flex: 1; min-width: 40px; padding: 8px 0; background: #f1f3f5; border-radius: 12px; font-size: 11px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .day-check input { display: none; }
+        .day-check:has(input:checked) { background: var(--p-color); color: white; font-weight: bold; }
+
+        /* 구성원 관리 모달/사이드바 */
+        #memberModal { display: none; position: fixed; top: var(--header-h); left: 0; width: 180px; background: white; border-right: 1px solid var(--brd); height: calc(100% - var(--header-h)); z-index: 2000; box-shadow: 4px 0 10px rgba(0,0,0,0.05); padding: 15px; }
+        .member-list-item { padding: 12px; border-radius: 8px; margin-bottom: 8px; cursor: pointer; font-size: 14px; font-weight: 600; text-align: center; background: #f8f9fa; }
+        .member-list-item.active { background: var(--txt); color: white; }
+        .add-member-btn { width: 100%; padding: 10px; border: 1px dashed #adb5bd; border-radius: 8px; background: none; color: #868e96; font-size: 12px; cursor: pointer; margin-top: 10px; }
+
+        /* 시간표 본체 */
+        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; width: 100%; }
+        .timetable-scroll-wrapper { position: relative; min-height: 100%; width: 100%; }
+        .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .timetable th, .timetable td { border-right: 1px solid var(--brd); border-bottom: 1px solid var(--brd); position: relative; height: 40px; }
+        .timetable th { background: #f8f9fa; font-size: 12px; position: sticky; top: 0; z-index: 20; color: #868e96; }
+        .time-col { width: 45px; font-size: 11px; color: #adb5bd; text-align: center; background: #fcfcfd; font-weight: 600; }
+
+        #nowLine { position: absolute; height: 1px; background: var(--now); z-index: 30; display: none; pointer-events: none; }
+        #blockLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
+        .class-block { position: absolute; pointer-events: auto; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; color: #444; font-weight: 800; font-size: 10px; text-align: center; }
+        .block-owner { font-size: 8px; background: rgba(255,255,255,0.4); padding: 1px 3px; border-radius: 3px; margin-bottom: 1px; }
+        
+        /* 오버레이 (사이드바 열렸을 때 배경) */
+        #overlay { display: none; position: fixed; top: var(--header-h); left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.2); z-index: 1500; }
+    </style>
+</head>
+<body>
+
+<div class="main-wrapper">
+    <nav class="top-nav">
+        <button class="nav-btn" id="btnMemberMenu">👨‍👩‍👧‍👦 가족 관리</button>
+        <div id="viewStatus" style="font-size: 12px; font-weight: bold; color: #868e96;">전체 보기</div>
+        <button class="nav-btn primary" id="btnSync">저장 및 동기화</button>
+    </nav>
+
+    <div class="input-panel">
+        <div class="input-group">
+            <div class="dropdown-container">
+                <input type="text" id="classNameInp" class="inp-name" placeholder="일정/과목명" autocomplete="off">
+                <div id="classList" class="class-list"></div>
+            </div>
+            <input type="text" id="startTime" class="inp-time" placeholder="0900" maxlength="4" style="flex:0.6">
+            <input type="text" id="endTime" class="inp-time" placeholder="1000" maxlength="4" style="flex:0.6">
+        </div>
+        <div id="daySelector" class="day-selector"></div>
+    </div>
+
+    <div class="timetable-container">
+        <div class="timetable-scroll-wrapper">
+            <table class="timetable" id="baseTable">
+                <thead><tr id="dayHeaders"></tr></thead>
+                <tbody id="timetableBody"></tbody>
+            </table>
+            <div id="nowLine"></div>
+            <div id="blockLayer"></div>
+        </div>
+    </div>
+</div>
+
+<div id="overlay"></div>
+<div id="memberModal">
+    <div id="memberList">
+        </div>
+    <button class="add-member-btn" id="btnAddMember">+ 가족 추가</button>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyD8Lu75Q9T4Uu0OA_2fXpKLh3t6z04H6yg",
+        authDomain: "family-scheduler-f61ee.firebaseapp.com",
+        databaseURL: "https://family-scheduler-f61ee-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "family-scheduler-f61ee",
+        storageBucket: "family-scheduler-f61ee.firebasestorage.app",
+        messagingSenderId: "123040053288",
+        appId: "1:123040053288:web:1960a257bc27af1aa15d1d",
+        measurementId: "G-ZQ5PN1JL48"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const dayNames = ['월', '화', '수', '목', '금', '토', '일'], jsDays = ['일', '월', '화', '수', '목', '금', '토'];
+    const palette = ['#ffadad', '#ffd6a5', '#fdffb6', '#caffbf', '#9bf6ff', '#a0c4ff', '#bdb2ff', '#ffc6ff'];
+    const startH = 6, endH = 23;
+
+    let schedule = Object.fromEntries(dayNames.map(d => [d, []]));
+    let classNames = ['학교', '학원', '회사', '운동'];
+    let familyMembers = ['아빠', '엄마', '하윤', '우빈']; // 기본 가족 구성원
+    let currentViewFilter = "전체";
+
+    const el = {
+        name: document.getElementById('classNameInp'), list: document.getElementById('classList'),
+        body: document.getElementById('timetableBody'), heads: document.getElementById('dayHeaders'),
+        selector: document.getElementById('daySelector'), layer: document.getElementById('blockLayer'),
+        line: document.getElementById('nowLine'), table: document.getElementById('baseTable'),
+        btnMember: document.getElementById('btnMemberMenu'), modal: document.getElementById('memberModal'),
+        overlay: document.getElementById('overlay'), mList: document.getElementById('memberList'),
+        status: document.getElementById('viewStatus'), btnSync: document.getElementById('btnSync')
+    };
+
+    // 테이블 초기화
+    el.heads.innerHTML = '<th class="time-col">T</th>' + dayNames.map(d => `<th data-day="${d}">${d}</th>`).join('');
+    el.selector.innerHTML = dayNames.map(d => `<label class="day-check"><input type="checkbox" value="${d}"> ${d}</label>`).join('');
+    for(let h=startH; h<=endH; h++) {
+        const row = el.body.insertRow();
+        row.innerHTML = `<td class="time-col">${String(h).padStart(2,'0')}</td>` + '<td></td>'.repeat(7);
+    }
+
+    // 가족 관리 메뉴 열고 닫기
+    el.btnMember.onclick = () => { el.modal.style.display = 'block'; el.overlay.style.display = 'block'; };
+    el.overlay.onclick = () => { el.modal.style.display = 'none'; el.overlay.style.display = 'none'; };
+
+    // 구성원 목록 그리기 및 필터링
+    const updateMemberList = () => {
+        let html = `<div class="member-list-item ${currentViewFilter==='전체'?'active':''}" onclick="setFilter('전체')">전체 보기</div>`;
+        familyMembers.forEach(m => {
+            html += `<div class="member-list-item ${currentViewFilter===m?'active':''}" onclick="setFilter('${m}')">${m}</div>`;
+        });
+        el.mList.innerHTML = html;
+    };
+
+    window.setFilter = (name) => {
+        currentViewFilter = name;
+        el.status.innerText = name === '전체' ? '전체 보기' : `${name}의 시간표`;
+        el.modal.style.display = 'none'; el.overlay.style.display = 'none';
+        updateMemberList();
+        render();
+    };
+
+    // 가족 구성원 추가 버튼
+    document.getElementById('btnAddMember').onclick = () => {
+        const newName = prompt("새로운 가족 구성원 이름을 입력하세요:");
+        if (newName && !familyMembers.includes(newName)) {
+            familyMembers.push(newName);
+            save(); // Firebase에 가족 구성원 업데이트
+        }
+    };
+
+    // 일정명 자동완성 리스트
+    el.name.onfocus = () => {
+        el.list.innerHTML = classNames.map(n => `<div class="class-item">${n}</div>`).join('');
+        el.list.style.display = 'block';
+        el.list.querySelectorAll('.class-item').forEach(i => i.onmousedown = () => el.name.value = i.innerText);
+    };
+    el.name.onblur = () => setTimeout(() => el.list.style.display = 'none', 200);
+
+    // [Firebase] 수신
+    db.ref('family_data').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            schedule = data.schedule || Object.fromEntries(dayNames.map(d => [d, []]));
+            classNames = data.classNames || classNames;
+            familyMembers = data.familyMembers || familyMembers;
+            updateMemberList();
+            render();
+        }
+    });
+
+    const render = () => {
+        el.layer.innerHTML = '';
+        const now = new Date(), today = jsDays[now.getDay()], nowMin = now.getHours() * 60 + now.getMinutes();
+        const headH = el.table.querySelector('thead').offsetHeight, rowH = el.table.querySelector('td').offsetHeight;
+        const dayW = (el.table.offsetWidth - 45) / 7;
+
+        // 현재 시간선
+        const relMin = nowMin - (startH * 60);
+        const tIdx = dayNames.indexOf(today);
+        if (tIdx !== -1 && relMin >= 0 && relMin <= (endH - startH + 1) * 60) {
+            el.line.style.display = 'block';
+            el.line.style.width = dayW + 'px'; el.line.style.left = (45 + tIdx * dayW) + 'px';
+            el.line.style.top = headH + (relMin / 60) * rowH + 'px';
+        } else el.line.style.display = 'none';
+
+        dayNames.forEach((d, dIdx) => {
+            if(!schedule[d]) return;
+            schedule[d].forEach((item, i) => {
+                if (currentViewFilter !== "전체" && item.owner !== currentViewFilter) return;
+
+                const parse = t => t.split(':').reduce((h, m) => h * 60 + (+m), 0);
+                const s = parse(item.start), e = parse(item.end);
+                const startRel = s - (startH * 60), duration = e - s;
+
+                const block = document.createElement('div');
+                block.className = 'class-block';
+                const colorIdx = classNames.indexOf(item.name);
+                block.style.backgroundColor = palette[colorIdx % palette.length] || '#e9ecef';
+                block.style.top = headH + (startRel / 60) * rowH + 'px';
+                block.style.height = (duration / 60) * rowH + 'px';
+                block.style.left = 45 + (dIdx * dayW) + 'px';
+                block.style.width = dayW + 'px';
+                
+                block.innerHTML = `<span class="block-owner">${item.owner}</span><span>${item.name}</span>`;
+                block.onclick = () => confirm(`[${item.owner}] ${item.name} 삭제할까요?`) && (schedule[d].splice(i, 1), save());
+                el.layer.appendChild(block);
+            });
+        });
+    };
+
+    const save = () => {
+        db.ref('family_data').set({ schedule, classNames, familyMembers });
+    };
+
+    // 상단 동기화 버튼 클릭 시 일정 추가
+    el.btnSync.onclick = () => {
+        const name = el.name.value.trim(), sV = document.getElementById('startTime').value, eV = document.getElementById('endTime').value;
+        const checked = [...el.selector.querySelectorAll('input:checked')].map(i => i.value);
+
+        if (currentViewFilter === "전체") return alert('왼쪽 상단 [가족 관리]에서 먼저 구성원을 선택해주세요!');
+        if (!name || sV.length < 4 || eV.length < 4 || !checked.length) return alert('모든 정보를 입력해주세요.');
+
+        const st = `${sV.slice(0,2)}:${sV.slice(2,4)}`, et = `${eV.slice(0,2)}:${eV.slice(2,4)}`;
+        checked.forEach(d => {
+            if(!schedule[d]) schedule[d] = [];
+            schedule[d].push({ name, start: st, end: et, owner: currentViewFilter });
+        });
+
+        if (!classNames.includes(name)) classNames.push(name);
+        save();
+        alert('클라우드에 저장되었습니다!');
+        el.name.value = ''; document.getElementById('startTime').value = ''; document.getElementById('endTime').value = '';
+        el.selector.querySelectorAll('input').forEach(i => i.checked = false);
+    };
+
+    window.onresize = render;
+    setInterval(render, 30000);
+    updateMemberList();
+</script>
+</body>
+</html>
