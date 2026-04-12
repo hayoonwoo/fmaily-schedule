@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 스케줄러 V3.1</title>
+    <title>우리 가족 스마트 스케줄러 V3.2</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -35,7 +35,7 @@
         .timetable td { height: 45px; border-bottom: 1px solid var(--brd); border-right: 1px solid var(--brd); }
 
         #blockLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
-        .class-block { position: absolute; pointer-events: auto; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; font-weight: bold; font-size: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid rgba(0,0,0,0.05); }
+        .class-block { position: absolute; pointer-events: auto; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px; font-weight: bold; font-size: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid rgba(0,0,0,0.03); }
 
         #memberModal { display: none; position: fixed; top: 0; left: 0; width: 220px; background: white; height: 100%; z-index: 2000; box-shadow: 5px 0 15px rgba(0,0,0,0.1); padding: 20px; }
         .member-item { display: flex; justify-content: space-between; align-items: center; background: #F8F9FA; margin-bottom: 8px; padding: 10px; border-radius: 8px; font-size: 14px; cursor: pointer; }
@@ -98,8 +98,12 @@
     const db = firebase.database();
 
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
-    // 다채로운 파스텔 팔레트
-    const colors = ['#FFADAD', '#FFD6A5', '#FDFFB6', '#CAFFBF', '#9BF6FF', '#A0C4FF', '#BDB2FF', '#FFC6FF', '#E2F0CB', '#FFCCF9'];
+    // 12종 고유 파스텔 팔레트 (색차이 강화)
+    const colors = [
+        '#FFADAD', '#FFD6A5', '#FDFFB6', '#CAFFBF', 
+        '#9BF6FF', '#A0C4FF', '#BDB2FF', '#FFC6FF', 
+        '#E2F0CB', '#B5EAD7', '#C7CEEA', '#FF9AA2'
+    ];
     let schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
 
     const init = () => {
@@ -146,9 +150,12 @@
                 const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
                 const s = parse(item.start) - (8*60), dur = parse(item.end) - parse(item.start);
                 
-                // [개선] 일정 이름(item.name)을 기준으로 고유 색상 배정
-                const nameHash = item.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                const colorIdx = nameHash % colors.length;
+                // 색상 중복 방지 로직 강화
+                let nameHash = 0;
+                for(let j=0; j<item.name.length; j++) {
+                    nameHash = (nameHash << 5) - nameHash + item.name.charCodeAt(j);
+                }
+                const colorIdx = Math.abs(nameHash) % colors.length;
 
                 const block = document.createElement('div');
                 block.className = 'class-block';
