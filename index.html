@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V5.7</title>
+    <title>우리 가족 스마트 시간표 V5.8</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
@@ -36,16 +36,20 @@
         #nowLine { position: absolute; height: 2px; background: #FF7675; z-index: 60; pointer-events: none; }
         #nowLine::before { content: ''; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; background: #FF7675; border-radius: 50%; }
 
-        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 320px; background: white; z-index: 2000; padding: 20px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 92%; max-width: 340px; background: white; z-index: 2000; padding: 20px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
         .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1500; }
         
         .input-group { margin-bottom: 12px; }
         .input-group label { display: block; font-size: 12px; margin-bottom: 5px; font-weight: bold; }
-        .modal-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
+        .modal-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; font-size: 14px; }
         
-        /* 일정 추천 리스트 영역 */
-        .task-suggestions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; max-height: 80px; overflow-y: auto; }
-        .s-chip { padding: 5px 10px; background: #F3F0FF; border-radius: 5px; font-size: 11px; color: #6741D9; cursor: pointer; border: 1px solid #E5DBFF; }
+        /* 요일 다중 선택 스타일 */
+        .day-flex { display: flex; gap: 4px; margin-top: 5px; }
+        .day-chip { flex: 1; padding: 8px 0; text-align: center; background: #F1F3F5; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; border: 1px solid transparent; }
+        .day-chip.active { background: #A29BFE; color: white; border-color: #6C5CE7; }
+
+        .task-suggestions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; max-height: 70px; overflow-y: auto; border-top: 1px dashed #eee; padding-top: 8px; }
+        .s-chip { padding: 4px 8px; background: #F3F0FF; border-radius: 4px; font-size: 11px; color: #6741D9; cursor: pointer; border: 1px solid #E5DBFF; }
 
         .member-item { display: flex; justify-content: space-between; align-items: center; background: #F1F3F5; margin-bottom: 8px; padding: 10px; border-radius: 10px; font-weight: 600; cursor: pointer; }
     </style>
@@ -53,9 +57,9 @@
 <body>
 
     <nav class="top-nav">
-        <button class="nav-btn" onclick="openMemberModal()">👨‍👩‍👧‍👦 가족목록</button>
+        <button class="nav-btn" onclick="openMemberModal()">👨‍👩‍👧‍👦 가족명단</button>
         <div id="viewStatus" style="font-weight: 800; color: #0984E3; font-size: 14px;">🌟 전체보기</div>
-        <button class="nav-btn primary" onclick="exportExcel()">📊 엑셀</button>
+        <button class="nav-btn primary" onclick="exportExcel()">📊 엑셀추출</button>
     </nav>
 
     <div class="timetable-container">
@@ -72,15 +76,23 @@
 
     <div id="inputModal" class="modal">
         <h3 id="modalTitle" style="margin-top:0; font-size:16px; color:#574B90;">📅 일정 추가</h3>
+        
         <div class="input-group">
-            <label>누구의 일정인가요?</label>
+            <label>1. 요일 선택 (중복 가능)</label>
+            <div class="day-flex" id="modalDayContainer"></div>
+        </div>
+
+        <div class="input-group">
+            <label>2. 대상 구성원</label>
             <select id="modalOwner" class="modal-input"></select>
         </div>
+
         <div class="input-group">
-            <label>일정 이름 (직접 입력 시 자동 리스트업)</label>
-            <input type="text" id="modalName" class="modal-input" placeholder="예: 수영, 코딩학원 등">
+            <label>3. 일정 이름</label>
+            <input type="text" id="modalName" class="modal-input" placeholder="일정명을 입력하세요">
             <div class="task-suggestions" id="taskSuggestions"></div>
         </div>
+
         <div style="display:flex; gap:5px;">
             <div class="input-group" style="flex:1">
                 <label>시작(HHMM)</label>
@@ -91,13 +103,13 @@
                 <input type="text" id="modalEnd" class="modal-input" maxlength="4">
             </div>
         </div>
-        <button class="nav-btn primary" style="width:100%; justify-content:center; padding:14px; font-size:14px; margin-top:5px;" onclick="saveFromModal()">일정 저장하기</button>
+        <button class="nav-btn primary" style="width:100%; justify-content:center; padding:14px; font-size:15px; margin-top:10px;" onclick="saveFromModal()">일정 저장하기</button>
     </div>
 
     <div id="memberModal" class="modal">
-        <h3 style="margin-top:0;">👨‍👩‍👧‍👦 가족 명단</h3>
+        <h3 style="margin-top:0;">👨‍👩‍👧‍👦 가족 관리</h3>
         <div id="memberList"></div>
-        <button onclick="addMember()" style="width:100%; padding:10px; border-radius:10px; border:none; background:#eee; font-weight:bold; margin-top:10px;">+ 가족 멤버 추가</button>
+        <button onclick="addMember()" style="width:100%; padding:10px; border-radius:10px; border:none; background:#eee; font-weight:bold; margin-top:10px;">+ 새 멤버 추가</button>
     </div>
 
 <script>
@@ -105,17 +117,16 @@
         apiKey: "AIzaSyD8Lu75Q9T4Uu0OA_2fXpKLh3t6z04H6yg",
         authDomain: "family-scheduler-f61ee.firebaseapp.com",
         databaseURL: "https://family-scheduler-f61ee-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "family-scheduler-f61ee",
-        databaseURL: "https://family-scheduler-f61ee-default-rtdb.asia-southeast1.firebasedatabase.app"
+        projectId: "family-scheduler-f61ee"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
-    let customTasks = ['학교', '학원', '수영', '피아노', '축구', '독서', '휴식']; // 기본 리스트
-    const colorPalette = ['#D1BAFF', '#B2E2F2', '#FFBEBC', '#FFF5BA', '#ABF7B1', '#E2F0CB', '#FFCCF9', '#C7CEEA'];
+    let customTasks = ['학교', '학원', '수영', '피아노', '축구']; 
+    let colorPalette = ['#D1BAFF', '#B2E2F2', '#FFBEBC', '#FFF5BA', '#ABF7B1', '#E2F0CB', '#FFCCF9', '#C7CEEA'];
     let colorMap = {}, schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
-    let selectedDay = '월';
+    let selectedDays = [];
 
     const init = () => {
         document.getElementById('dayHeaders').innerHTML = '<th class="time-col">시간</th>' + dayNames.map(d => `<th>${d}</th>`).join('');
@@ -162,15 +173,13 @@
         updateTaskSuggestions();
     };
 
-    // 일정 리스트 업데이트 및 렌더링
     const updateTaskSuggestions = () => {
-        const container = document.getElementById('taskSuggestions');
-        container.innerHTML = customTasks.map(t => `<div class="s-chip" onclick="setModalName('${t}')">${t}</div>`).join('');
+        document.getElementById('taskSuggestions').innerHTML = customTasks.map(t => `<div class="s-chip" onclick="setModalName('${t}')">${t}</div>`).join('');
     };
 
     const openInputModal = (day, time) => {
-        selectedDay = day;
-        document.getElementById('modalTitle').innerText = `📅 ${day}요일 일정 추가`;
+        selectedDays = [day]; // 클릭한 요일 기본 선택
+        renderDayChips();
         document.getElementById('modalStart').value = time;
         const endH = (parseInt(time.slice(0,2)) + 1).toString().padStart(2,'0');
         document.getElementById('modalEnd').value = `${endH}00`;
@@ -180,6 +189,18 @@
         document.getElementById('overlay').style.display = 'block';
     };
 
+    const renderDayChips = () => {
+        document.getElementById('modalDayContainer').innerHTML = dayNames.map(d => `
+            <div class="day-chip ${selectedDays.includes(d) ? 'active' : ''}" onclick="toggleDaySelection('${d}')">${d}</div>
+        `).join('');
+    };
+
+    const toggleDaySelection = (day) => {
+        if(selectedDays.includes(day)) selectedDays = selectedDays.filter(d => d !== day);
+        else selectedDays.push(day);
+        renderDayChips();
+    };
+
     const setModalName = (name) => document.getElementById('modalName').value = name;
 
     const saveFromModal = () => {
@@ -187,30 +208,28 @@
         const owner = document.getElementById('modalOwner').value;
         const sV = document.getElementById('modalStart').value;
         const eV = document.getElementById('modalEnd').value;
-        if(!name || sV.length < 4 || eV.length < 4) return alert("정보를 모두 입력해주세요.");
         
-        // 자동 리스트업 로직: 리스트에 없으면 추가
+        if(!name || sV.length < 4 || eV.length < 4 || selectedDays.length === 0) return alert("요일, 이름, 시간을 모두 확인해주세요.");
+        
+        // 1. 자동 리스트업 로직 보완
         if(!customTasks.includes(name)) {
             customTasks.push(name);
         }
 
-        if(!schedule[selectedDay]) schedule[selectedDay] = [];
-        schedule[selectedDay].push({ name, owner, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}` });
-        save();
+        // 2. 선택된 모든 요일에 등록
+        selectedDays.forEach(day => {
+            if(!schedule[day]) schedule[day] = [];
+            schedule[day].push({ name, owner, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}` });
+        });
+
+        save(); // DB 저장
         closeAllModals();
     };
 
-    const openMemberModal = () => {
-        renderMemberList();
-        document.getElementById('memberModal').style.display = 'block';
-        document.getElementById('overlay').style.display = 'block';
-    };
-
+    const openMemberModal = () => { renderMemberList(); document.getElementById('memberModal').style.display = 'block'; document.getElementById('overlay').style.display = 'block'; };
     const renderMemberList = () => {
         let h = `<div class="member-item" onclick="setFilter('전체')">🌟 전체 시간표 보기</div>`;
-        familyMembers.forEach((m, i) => {
-            h += `<div class="member-item"><span onclick="setFilter('${m}')" style="flex:1">👤 ${m} 시간표</span><button onclick="deleteMember(${i})" style="border:none; color:red; background:none;">❌</button></div>`;
-        });
+        familyMembers.forEach((m, i) => { h += `<div class="member-item"><span onclick="setFilter('${m}')" style="flex:1">👤 ${m} 시간표</span><button onclick="deleteMember(${i})" style="border:none; color:red; background:none;">❌</button></div>`; });
         document.getElementById('memberList').innerHTML = h;
     };
 
@@ -219,7 +238,7 @@
     const addMember = () => { const n = prompt("이름:"); if(n) { familyMembers.push(n); save(); renderMemberList(); } };
     const deleteMember = (i) => { if(confirm(`${familyMembers[i]} 삭제?`)) { familyMembers.splice(i, 1); save(); renderMemberList(); } };
     
-    // 데이터 통합 저장 (일정 리스트 포함)
+    // DB 저장 시 일정 리스트(customTasks)도 반드시 포함
     const save = () => db.ref('family_data').set({ schedule, familyMembers, customTasks });
 
     const exportExcel = () => {
@@ -246,7 +265,6 @@
         XLSX.writeFile(wb, `가족시간표.xlsx`);
     };
 
-    // DB에서 일정 리스트도 함께 불러오기
     db.ref('family_data').on('value', snap => { 
         if(snap.val()) { 
             schedule = snap.val().schedule || {}; 
