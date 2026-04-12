@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V4.9</title>
+    <title>우리 가족 스마트 시간표 V5.0</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
@@ -17,7 +17,6 @@
         .top-nav { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--brd); z-index: 1000; }
         .nav-btn { background: #F1F3F5; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
         .nav-btn.primary { background: var(--p-color); color: white; }
-        .nav-btn.alarm { background: #FF7675; color: white; }
 
         .input-panel { background: #fff; padding: 10px; border-bottom: 1px solid var(--brd); flex-shrink: 0; }
         .input-group { display: flex; gap: 4px; margin-bottom: 8px; }
@@ -59,7 +58,6 @@
     <nav class="top-nav">
         <button class="nav-btn" onclick="toggleMenu(true)">👨‍👩‍👧‍👦 가족</button>
         <div id="viewStatus" style="font-weight: 800; color: #0984E3; font-size: 14px;">전체보기</div>
-        <button class="nav-btn alarm" id="alarmBtn" onclick="requestNoti()">🔔 알람설정</button>
         <button class="nav-btn primary" onclick="addSchedule()">저장</button>
     </nav>
 
@@ -112,7 +110,6 @@
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
     const colorPalette = ['#D1BAFF', '#B2E2F2', '#FFBEBC', '#FFF5BA', '#ABF7B1', '#E2F0CB', '#FFCCF9', '#C7CEEA'];
     let colorMap = {}, schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
-    let notifiedItems = new Set(); // 중복 알림 방지
 
     const init = () => {
         document.getElementById('dayHeaders').innerHTML = '<th class="time-col">시간</th>' + dayNames.map(d => `<th>${d}</th>`).join('');
@@ -122,7 +119,7 @@
         document.getElementById('timetableBody').innerHTML = html;
         
         window.addEventListener('resize', render);
-        setInterval(() => { render(); checkAlarms(); }, 30000);
+        setInterval(render, 30000);
         render();
     };
 
@@ -164,48 +161,16 @@
         });
     };
 
-    // 알람 설정 기능
-    const requestNoti = () => {
-        Notification.requestPermission().then(perm => {
-            if(perm === "granted") {
-                alert("알람 설정이 완료되었습니다. 일정 시작 10분 전에 알려드릴게요!");
-                document.getElementById('alarmBtn').innerText = "🔔 알람 작동중";
-            }
-        });
-    };
-
-    const checkAlarms = () => {
-        if(Notification.permission !== "granted") return;
-        const now = new Date();
-        const curDay = dayNames[(now.getDay() + 6) % 7];
-        const curTotal = now.getHours() * 60 + now.getMinutes();
-
-        (schedule[curDay] || []).forEach(item => {
-            if(currentFilter !== "전체" && item.owner !== currentFilter) return;
-            const startTotal = item.start.split(':').reduce((h,m)=>h*60+(+m),0);
-            const diff = startTotal - curTotal;
-            const alarmKey = `${item.owner}_${item.name}_${item.start}`;
-
-            if(diff === 10 && !notifiedItems.has(alarmKey)) {
-                new Notification(`[가족 시간표] 시작 10분 전!`, {
-                    body: `${item.owner}님의 '${item.name}' 일정이 ${item.start}에 시작됩니다.`
-                });
-                notifiedItems.add(alarmKey);
-            }
-        });
-    };
-
     // 엑셀 추출: 셀 병합 & 색상 (반올림 방식)
     const exportExcel = () => {
         const header = ["시간", ...dayNames];
         const dataRows = [];
         const merges = [];
 
-        // 6시부터 22시까지 1시간 단위로 구성
         for(let h=6; h<=22; h++) {
             const timeStr = `${h.toString().padStart(2,'0')}:00`;
             const row = [timeStr];
-            dayNames.forEach((day, dIdx) => {
+            dayNames.forEach((day) => {
                 const items = (schedule[day] || []).filter(it => {
                     const startH = parseInt(it.start.split(':')[0]);
                     const endH = parseInt(it.end.split(':')[1]) > 0 ? parseInt(it.end.split(':')[0]) + 1 : parseInt(it.end.split(':')[0]);
@@ -219,15 +184,14 @@
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
 
-        // 셀 병합 로직 (동일한 내용의 세로 셀 병합)
         dayNames.forEach((day, dIdx) => {
             let startRow = -1;
-            for(let r=1; r<dataRows.length; r++) {
+            for(let r=1; r<=dataRows.length; r++) {
                 const colIdx = dIdx + 1;
-                const currentVal = dataRows[r][colIdx];
+                const currentVal = r < dataRows.length ? dataRows[r][colIdx] : null;
                 const prevVal = r > 0 ? dataRows[r-1][colIdx] : null;
 
-                if(currentVal !== "" && currentVal === prevVal) {
+                if(currentVal !== "" && currentVal === prevVal && currentVal !== null) {
                     if(startRow === -1) startRow = r;
                 } else {
                     if(startRow !== -1) {
@@ -241,7 +205,7 @@
         ws['!cols'] = [{wch:10}, ...Array(7).fill({wch:20})];
         
         XLSX.utils.book_append_sheet(wb, ws, "시간표");
-        XLSX.writeFile(wb, `가족시간표_${currentFilter}.xlsx`);
+        XLSX.writeFile(wb, `우리집_시간표_${currentFilter}.xlsx`);
     };
 
     const addSchedule = () => {
@@ -254,6 +218,7 @@
             schedule[d].push({ name, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, owner: currentFilter === "전체" ? familyMembers[0] : currentFilter });
         });
         save();
+        document.getElementById('classNameInp').value = ''; document.getElementById('startTime').value = ''; document.getElementById('endTime').value = '';
     };
 
     const toggleMenu = (s) => { 
