@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V5.1</title>
+    <title>우리 가족 스마트 시간표 V5.2</title>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
@@ -84,7 +84,7 @@
     </div>
 
     <div class="export-area">
-        <button class="export-btn" onclick="exportExcel()">📊 엑셀 정밀 추출(30분 단위)</button>
+        <button class="export-btn" onclick="exportExcelWithStyle()">📊 엑셀 정밀 추출 (디자인 적용)</button>
     </div>
 
     <div id="overlay" onclick="toggleMenu(false)" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1500;"></div>
@@ -126,22 +126,18 @@
         const layer = document.getElementById('blockLayer');
         const nowLine = document.getElementById('nowLine');
         layer.innerHTML = ''; if(nowLine) layer.appendChild(nowLine);
-        
         const table = document.getElementById('baseTable');
         if(!table.offsetWidth) return;
-
         const headH = table.querySelector('thead').offsetHeight;
         const rowH = table.querySelector('tbody td').offsetHeight;
         const colW = table.querySelector('tbody td:nth-child(2)').offsetWidth;
         const now = new Date();
-
         if(now.getHours() >= 6 && now.getHours() <= 22) {
             nowLine.style.display = 'block';
             nowLine.style.top = (headH + ((now.getHours() - 6) * rowH) + (now.getMinutes() / 60 * rowH)) + 'px';
             nowLine.style.left = (42 + ((now.getDay() + 6) % 7) * colW) + 'px';
             nowLine.style.width = colW + 'px';
         } else { nowLine.style.display = 'none'; }
-
         dayNames.forEach((day, dIdx) => {
             (schedule[day] || []).forEach((item, i) => {
                 if(currentFilter !== "전체" && item.owner !== currentFilter) return;
@@ -158,18 +154,19 @@
         });
     };
 
-    // 엑셀 추출 V5.1 (30분 단위 + 병합 + 중앙정렬 + 색상)
-    const exportExcel = () => {
-        const wb = XLSX.utils.book_new();
-        const header = ["시간", ...dayNames];
-        const dataRows = [header];
-        const merges = [];
+    // 엑셀 디자인 추출 V5.2
+    const exportExcelWithStyle = () => {
+        const wb = XlsxPopulate.utils.book_new(); // 내부적으로 라이브러리가 wb 객체 생성 지원
+        const wsData = [["시간", ...dayNames]];
+        const styleGrid = []; // 스타일 정보를 담을 배열
 
-        // 1. 30분 단위 데이터 행 생성 (06:00 ~ 22:30)
+        // 1. 30분 단위 데이터 및 스타일 맵 구성
         for(let h=6; h<=22; h++) {
             [0, 30].forEach(m => {
                 const timeStr = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
                 const row = [timeStr];
+                const sRow = [null]; // 시간열은 스타일 생략
+                
                 dayNames.forEach(day => {
                     const currentTotalMin = h * 60 + m;
                     const items = (schedule[day] || []).filter(it => {
@@ -177,22 +174,56 @@
                         const eMin = it.end.split(':').reduce((h,m)=>h*60+(+m),0);
                         return currentTotalMin >= sMin && currentTotalMin < eMin && (currentFilter === "전체" || it.owner === currentFilter);
                     });
-                    row.push(items.length > 0 ? `[${items[0].owner}] ${items[0].name}` : "");
+
+                    if(items.length > 0) {
+                        row.push(`[${items[0].owner}] ${items[0].name}`);
+                        sRow.push({
+                            fill: { fgColor: { rgb: colorMap[items[0].name].replace("#", "") } },
+                            alignment: { horizontal: "center", vertical: "center" },
+                            font: { sz: 10, bold: true }
+                        });
+                    } else {
+                        row.push("");
+                        sRow.push({ alignment: { horizontal: "center", vertical: "center" } });
+                    }
                 });
-                dataRows.push(row);
+                wsData.push(row);
+                styleGrid.push(sRow);
             });
         }
 
-        const ws = XLSX.utils.aoa_to_sheet(dataRows);
+        // 2. 워크시트 생성 및 스타일 적용
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-        // 2. 셀 병합 로직 (세로 방향 동일 일정 병합)
+        // 헤더 스타일링
+        for(let i=0; i<8; i++) {
+            const cellRef = XLSX.utils.encode_cell({r: 0, c: i});
+            ws[cellRef].s = { 
+                fill: { fgColor: { rgb: "F1F3F5" } }, 
+                alignment: { horizontal: "center", vertical: "center" },
+                font: { bold: true }
+            };
+        }
+
+        // 본문 스타일링 적용
+        for(let r=1; r < wsData.length; r++) {
+            for(let c=0; c < 8; c++) {
+                const cellRef = XLSX.utils.encode_cell({r: r, c: c});
+                if(!ws[cellRef]) ws[cellRef] = { v: "" };
+                // 30분 단위로 나뉜 각 셀에 스타일 부여
+                if(c > 0) ws[cellRef].s = styleGrid[r-1][c];
+                else ws[cellRef].s = { alignment: { horizontal: "center", vertical: "center" }, font: { color: { rgb: "ADB5BD" } } };
+            }
+        }
+
+        // 3. 셀 병합 (동일 일정 세로 병합)
+        const merges = [];
         dayNames.forEach((_, dIdx) => {
             let startRow = -1;
             const colIdx = dIdx + 1;
-            for(let r=1; r < dataRows.length; r++) {
-                const currentVal = dataRows[r][colIdx];
-                const nextVal = (r + 1 < dataRows.length) ? dataRows[r+1][colIdx] : null;
-
+            for(let r=1; r < wsData.length; r++) {
+                const currentVal = wsData[r][colIdx];
+                const nextVal = (r + 1 < wsData.length) ? wsData[r+1][colIdx] : null;
                 if(currentVal !== "" && currentVal === nextVal) {
                     if(startRow === -1) startRow = r;
                 } else {
@@ -204,13 +235,8 @@
             }
         });
         ws['!merges'] = merges;
+        ws['!cols'] = [{wch:10}, ...Array(7).fill({wch:20})];
 
-        // 3. 스타일링 (셀 너비 및 기본 정렬 설정 보조)
-        ws['!cols'] = [{wch:10}, ...Array(7).fill({wch:22})];
-
-        // 💡 참고: xlsx 기본 라이브러리는 배경색/정렬 등 상세 스타일을 지원하려면 xlsx-js-style 같은 확장판이 필요합니다.
-        // 현재는 표준 라이브러리 내에서 데이터 구조와 병합을 완벽히 구현했습니다.
-        
         XLSX.utils.book_append_sheet(wb, ws, "가족시간표");
         XLSX.writeFile(wb, `우리집_시간표_${currentFilter}.xlsx`);
     };
