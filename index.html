@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 스케줄러 V3.5</title>
+    <title>우리 가족 스마트 시간표 V3.6</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -12,7 +12,7 @@
 
     <style>
         :root { --p-color: #74B9FF; --bg: #F8F9FA; --brd: #E9ECEF; --txt: #2D3436; --header-h: 50px; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Pretendard', -apple-system, sans-serif; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Pretendard', sans-serif; }
         body, html { height: 100%; margin: 0; background: var(--bg); color: var(--txt); overflow: hidden; display: flex; flex-direction: column; }
         
         .top-nav { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--brd); z-index: 1000; }
@@ -24,66 +24,47 @@
         .inp-name, .inp-time { width: 100%; padding: 12px; border: 1px solid #DEE2E6; border-radius: 10px; font-size: 14px; outline: none; }
         
         .day-selector { display: flex; gap: 4px; }
-        .day-check { flex: 1; padding: 10px 0; background: #F8F9FA; border-radius: 10px; font-size: 12px; text-align: center; cursor: pointer; border: 1px solid #EDF2F7; font-weight: 600; }
+        .day-check { flex: 1; padding: 10px 0; background: #F8F9FA; border-radius: 10px; font-size: 12px; text-align: center; border: 1px solid #EDF2F7; }
         .day-check input { display: none; }
-        .day-check:has(input:checked) { background: #A29BFE; color: white; border-color: #A29BFE; }
+        .day-check:has(input:checked) { background: #A29BFE; color: white; }
 
-        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; }
-        .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        .timetable th { background: #F8F9FA; font-size: 12px; height: 45px; border-bottom: 2px solid var(--brd); border-right: 1px solid var(--brd); position: sticky; top: 0; z-index: 20; }
-        .time-col { width: 55px; font-size: 11px; color: #ADB5BD; text-align: center; border-right: 1px solid var(--brd); }
-        .timetable td { height: 50px; border-bottom: 1px solid var(--brd); border-right: 1px solid var(--brd); }
+        .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; padding: 5px; }
+        .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid var(--brd); }
+        .timetable th { background: #F1F3F5; font-size: 12px; height: 40px; border: 1px solid var(--brd); position: sticky; top: 0; z-index: 20; }
+        .time-col { width: 50px; font-size: 11px; color: #ADB5BD; text-align: center; border: 1px solid var(--brd); }
+        .timetable td { height: 45px; border: 1px solid var(--brd); }
 
         #blockLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25; }
-        
-        /* [개선] 글자가 박스를 벗어나도 보이도록 수정 */
         .class-block { 
-            position: absolute; 
-            pointer-events: auto; 
-            border-radius: 8px; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            padding: 2px; 
-            font-weight: 800; 
-            font-size: 11px; 
-            text-align: center; 
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1); 
-            border: 1.5px solid rgba(0,0,0,0.1); 
-            line-height: 1.1;
-            overflow: visible !important; /* 박스를 벗어나도 글자 노출 */
-            min-height: 25px; /* 너무 얇아지지 않도록 최소 높이 설정 */
+            position: absolute; pointer-events: auto; border-radius: 6px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            padding: 2px; font-weight: 800; font-size: 10px; text-align: center; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.1); 
+            line-height: 1.1; overflow: visible !important; /* 글자 탈출 허용 */
         }
-        .class-text {
-            width: 100%;
-            white-space: nowrap; /* 줄바꿈 방지하여 한눈에 보이게 함 */
-            text-shadow: 0 0 2px rgba(255,255,255,0.8); /* 배경색과 겹쳐도 잘 보이게 그림자 추가 */
-        }
-        .owner-tag { font-size: 9px; font-weight: 600; margin-bottom: 1px; opacity: 0.8; }
+        .class-text { white-space: nowrap; text-shadow: 0 0 2px rgba(255,255,255,0.7); }
+        .owner-tag { font-size: 8px; opacity: 0.8; margin-bottom: 1px; }
 
-        #memberModal { display: none; position: fixed; top: 0; left: 0; width: 250px; background: white; height: 100%; z-index: 2000; box-shadow: 10px 0 20px rgba(0,0,0,0.1); padding: 25px; }
-        .member-item { display: flex; justify-content: space-between; align-items: center; background: #F1F3F5; margin-bottom: 10px; padding: 12px; border-radius: 10px; font-size: 15px; cursor: pointer; font-weight: 600; }
-        .member-item.active { background: var(--p-color); color: white; }
-        #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1500; backdrop-filter: blur(2px); }
+        .export-area { padding: 10px; display: flex; gap: 8px; background: #fff; border-top: 1px solid var(--brd); }
+        .export-btn { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #DEE2E6; background: #fff; font-size: 12px; font-weight: 800; }
 
-        .export-area { padding: 12px; display: flex; gap: 10px; background: #fff; border-top: 1px solid var(--brd); }
-        .export-btn { flex: 1; padding: 14px; border-radius: 10px; border: 1px solid #DEE2E6; background: #fff; font-size: 13px; font-weight: 800; }
+        #memberModal { display: none; position: fixed; top: 0; left: 0; width: 250px; background: white; height: 100%; z-index: 2000; padding: 25px; box-shadow: 5px 0 15px rgba(0,0,0,0.1); }
+        #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1500; }
     </style>
 </head>
 <body>
 
     <nav class="top-nav">
         <button class="nav-btn" onclick="toggleMenu(true)">👨‍👩‍👧‍👦 가족 관리</button>
-        <div id="viewStatus" style="font-size: 14px; font-weight: 800; color: #0984E3;">전체보기</div>
+        <div id="viewStatus" style="font-weight: 800; color: #0984E3;">전체보기</div>
         <button class="nav-btn primary" onclick="addSchedule()">저장 및 동기화</button>
     </nav>
 
     <div class="input-panel">
         <div class="input-group">
-            <input type="text" id="classNameInp" class="inp-name" placeholder="일정명 (예: 학교, 구몬, 피아노)">
-            <input type="text" id="startTime" class="inp-time" placeholder="0900" maxlength="4" style="flex:0.7">
-            <input type="text" id="endTime" class="inp-time" placeholder="1030" maxlength="4" style="flex:0.7">
+            <input type="text" id="classNameInp" class="inp-name" placeholder="일정명 (학교, 구몬, 축구)">
+            <input type="text" id="startTime" class="inp-time" placeholder="0900" maxlength="4" style="flex:0.6">
+            <input type="text" id="endTime" class="inp-time" placeholder="1030" maxlength="4" style="flex:0.6">
         </div>
         <div id="daySelector" class="day-selector"></div>
     </div>
@@ -98,14 +79,14 @@
 
     <div class="export-area">
         <button class="export-btn" onclick="exportExcel()">📊 Excel 추출</button>
-        <button class="export-btn" onclick="exportPDF()">📄 PDF 전체 저장</button>
+        <button class="export-btn" onclick="exportPDF()">📄 PDF 그대로 저장</button>
     </div>
 
     <div id="overlay" onclick="toggleMenu(false)"></div>
     <div id="memberModal">
-        <h2 style="margin:0 0 20px 0; font-size: 20px;">가족 목록</h2>
+        <h3>가족 목록</h3>
         <div id="memberList"></div>
-        <button onclick="addMember()" style="width:100%; padding:12px; margin-top:15px; border:2px dashed #B2BEC3; background:none; color:#636E72; border-radius:10px; font-weight:700;">+ 새 가족 추가</button>
+        <button onclick="addMember()" style="width:100%; padding:10px; margin-top:10px;">+ 추가</button>
     </div>
 
 <script>
@@ -122,14 +103,8 @@
     const db = firebase.database();
 
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
-    const colors = ['#FFBEBC', '#FFF5BA', '#ABF7B1', '#B2E2F2', '#D1BAFF', '#FFD1DC', '#E2F0CB', '#B5EAD7', '#C7CEEA', '#FF9AA2', '#F3E5AB', '#C1E1C1', '#BAC9FF', '#FFCCF9', '#D5AAFF'];
-
-    const iconMap = {
-        '학교': '🏫', '피아노': '🎹', '축구': '⚽', '학원': '📝', '수학': '🔢', '구몬': '📑',
-        '영어': '🔤', '미술': '🎨', '운동': '🏃', '독서': '📚', '수영': '🏊',
-        '태권도': '🥋', '음악': '🎵', '식사': '🍴', '가족': '🏠'
-    };
-
+    const colors = ['#D1BAFF', '#B2E2F2', '#FFBEBC', '#FFF5BA', '#ABF7B1', '#E2F0CB', '#FFCCF9', '#C7CEEA'];
+    const iconMap = { '학교': '🏫', '피아노': '🎹', '축구': '⚽', '구몬': '📑', '수학': '🔢', '영어': '🔤' };
     let schedule = {}, familyMembers = ['아빠', '엄마', '하윤', '우빈'], currentFilter = "전체";
 
     const init = () => {
@@ -148,18 +123,11 @@
 
     const renderMembers = () => {
         let h = `<div class="member-item ${currentFilter==='전체'?'active':''}" onclick="setFilter('전체')">전체보기</div>`;
-        familyMembers.forEach((m, i) => {
-            h += `<div class="member-item ${currentFilter===m?'active':''}">
-                    <span onclick="setFilter('${m}')" style="flex:1">${m}</span>
-                    <span onclick="deleteMember(${i})" style="color:#FF7675; padding: 0 5px;">×</span>
-                  </div>`;
-        });
+        familyMembers.forEach((m, i) => h += `<div class="member-item ${currentFilter===m?'active':''}" onclick="setFilter('${m}')">${m}</div>`);
         document.getElementById('memberList').innerHTML = h;
     };
 
     const setFilter = (n) => { currentFilter = n; document.getElementById('viewStatus').innerText = n; toggleMenu(false); render(); };
-    const addMember = () => { const n = prompt("이름을 입력하세요:"); if(n && !familyMembers.includes(n)) { familyMembers.push(n); save(); } };
-    const deleteMember = (i) => { if(confirm(`${familyMembers[i]}님을 삭제할까요?`)) { familyMembers.splice(i, 1); save(); } };
 
     const render = () => {
         const layer = document.getElementById('blockLayer');
@@ -167,37 +135,22 @@
         const table = document.getElementById('baseTable');
         const headH = table.querySelector('thead').offsetHeight;
         const rowH = table.querySelector('td').offsetHeight;
-        const colW = (table.offsetWidth - 55) / 7;
+        const colW = (table.offsetWidth - 50) / 7;
 
         dayNames.forEach((day, dIdx) => {
             (schedule[day] || []).forEach((item, i) => {
                 if(currentFilter !== "전체" && item.owner !== currentFilter) return;
-                
                 const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
                 const s = parse(item.start) - (8*60), dur = parse(item.end) - parse(item.start);
                 
-                let displayIcon = '';
-                for(let key in iconMap) { if(item.name.includes(key)) { displayIcon = iconMap[key]; break; } }
-                
-                let hashStr = displayIcon + item.name;
-                let hash = 0;
-                for (let j = 0; j < hashStr.length; j++) {
-                    hash = ((hash << 5) - hash) + hashStr.charCodeAt(j);
-                    hash |= 0; 
-                }
-                const colorIdx = Math.abs(hash * 31) % colors.length;
+                let icon = '';
+                for(let key in iconMap) if(item.name.includes(key)) icon = iconMap[key];
 
                 const block = document.createElement('div');
                 block.className = 'class-block';
-                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${55 + dIdx*colW}px; width:${colW}px; background:${colors[colorIdx]};`;
-                
-                // [개선] 글자가 가려지지 않도록 class-text 추가
-                block.innerHTML = `
-                    <div class="owner-tag">${item.owner}</div>
-                    <div style="font-size: 13px;">${displayIcon}</div>
-                    <div class="class-text">${item.name}</div>
-                `;
-                block.onclick = () => confirm('이 일정을 삭제할까요?') && (schedule[day].splice(i, 1), save());
+                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${50 + dIdx*colW}px; width:${colW - 2}px; background:${colors[i % colors.length]};`;
+                block.innerHTML = `<div class="owner-tag">${item.owner}</div><div>${icon}</div><div class="class-text">${item.name}</div>`;
+                block.onclick = () => confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save());
                 layer.appendChild(block);
             });
         });
@@ -207,56 +160,38 @@
         const name = document.getElementById('classNameInp').value;
         const sV = document.getElementById('startTime').value, eV = document.getElementById('endTime').value;
         const days = [...document.querySelectorAll('.day-check input:checked')].map(i => i.value);
-
-        if(currentFilter === "전체") return alert("가족 구성원을 먼저 선택해 주세요.");
-        if(!name || sV.length<4 || !days.length) return alert("일정명, 시간, 요일을 입력해 주세요.");
-
+        if(!name || sV.length<4 || !days.length) return alert("정보를 모두 입력해주세요.");
         days.forEach(d => {
             if(!schedule[d]) schedule[d] = [];
             schedule[d].push({ name, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}`, owner: currentFilter });
         });
         save();
-        alert("저장되었습니다.");
-        document.getElementById('classNameInp').value = '';
     };
 
     const save = () => db.ref('family_data').set({ schedule, familyMembers });
-
-    db.ref('family_data').on('value', snap => {
-        const d = snap.val();
-        if(d) { schedule = d.schedule || {}; familyMembers = d.familyMembers || familyMembers; }
-        render();
-    });
-
-    const exportExcel = () => {
-        let d = [["요일", "시간", "일정", "담당"]];
-        dayNames.forEach(day => (schedule[day] || []).forEach(item => d.push([day, `${item.start}-${item.end}`, item.name, item.owner])));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "가족시간표");
-        XLSX.writeFile(wb, "가족시간표_백업.xlsx");
-    };
+    db.ref('family_data').on('value', snap => { if(snap.val()) { schedule = snap.val().schedule || {}; render(); } });
 
     const exportPDF = () => {
         const element = document.getElementById('captureArea');
-        const originalHeight = element.style.height;
-        element.style.height = 'auto';
-        element.style.overflow = 'visible';
-
         const opt = {
-            margin: 5, filename: '가족_스마트_시간표.pdf', image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 3, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            margin: 10,
+            filename: `가족_시간표_${currentFilter}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
         };
+        html2pdf().set(opt).from(element).save();
+    };
 
-        html2pdf().set(opt).from(element).save().then(() => {
-            element.style.height = originalHeight;
-            element.style.overflow = 'auto';
-            render();
-        });
+    const exportExcel = () => {
+        let data = [["요일", "시간", "일정", "가족"]];
+        dayNames.forEach(d => (schedule[d]||[]).forEach(item => data.push([d, `${item.start}~${item.end}`, item.name, item.owner])));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), "시간표데이터");
+        XLSX.writeFile(wb, "가족시간표_데이터.xlsx");
     };
 
     init();
-    window.onresize = render;
 </script>
 </body>
 </html>
