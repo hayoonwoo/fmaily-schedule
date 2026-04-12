@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V4.5</title>
+    <title>우리 가족 스마트 시간표 V4.6</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -86,7 +86,7 @@
     </div>
 
     <div class="export-area">
-        <button class="export-btn" onclick="exportExcel()">📊 엑셀(${currentFilter})</button>
+        <button class="export-btn" onclick="exportExcel()">📊 엑셀추출</button>
         <button class="export-btn" onclick="exportPDF()">📸 화면캡쳐 PDF</button>
     </div>
 
@@ -122,30 +122,8 @@
         document.getElementById('timetableBody').innerHTML = html;
         
         window.addEventListener('resize', render);
-        setInterval(updateNowLine, 30000);
-        updateNowLine();
-    };
-
-    const updateNowLine = () => {
-        const now = new Date();
-        const hour = now.getHours(), min = now.getMinutes();
-        const line = document.getElementById('nowLine');
-        const currentDayIdx = (now.getDay() + 6) % 7;
-
-        if(hour < 6 || hour > 22) { if(line) line.style.display = 'none'; return; }
-        
-        const table = document.getElementById('baseTable');
-        const headH = table.querySelector('thead').offsetHeight;
-        const rowH = table.querySelector('td').offsetHeight;
-        const colW = (table.offsetWidth - 42) / 7;
-
-        if(line) {
-            line.style.display = 'block';
-            line.style.top = (headH + ((hour - 6) * rowH) + (min / 60 * rowH)) + 'px';
-            line.style.left = (42 + currentDayIdx * colW) + 'px';
-            line.style.width = colW + 'px';
-        }
-        render(); 
+        setInterval(render, 30000); // 30초마다 render 호출하여 시간라인 자동 갱신
+        render();
     };
 
     const render = () => {
@@ -166,9 +144,19 @@
         const currentDayIdx = (now.getDay() + 6) % 7;
         const currentTotalMin = now.getHours() * 60 + now.getMinutes();
 
+        // [수정] 현재 시간 라인 위치 계산 (render 내에서 직접 수행하여 가로보기 대응)
+        if(now.getHours() >= 6 && now.getHours() <= 22) {
+            nowLine.style.display = 'block';
+            nowLine.style.top = (headH + ((now.getHours() - 6) * rowH) + (now.getMinutes() / 60 * rowH)) + 'px';
+            nowLine.style.left = (42 + currentDayIdx * colW) + 'px';
+            nowLine.style.width = colW + 'px';
+        } else {
+            nowLine.style.display = 'none';
+        }
+
+        // 일정 렌더링
         dayNames.forEach((day, dIdx) => {
             (schedule[day] || []).forEach((item, i) => {
-                // [필터링 핵심] 현재 선택된 구성원의 일정만 렌더링
                 if(currentFilter !== "전체" && item.owner !== currentFilter) return;
                 
                 if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
@@ -195,7 +183,6 @@
             });
         });
         
-        // 버튼 텍스트 업데이트
         document.querySelectorAll('.export-btn')[0].innerText = `📊 엑셀(${currentFilter})`;
     };
 
@@ -241,7 +228,6 @@
     const save = () => db.ref('family_data').set({ schedule, familyMembers });
     db.ref('family_data').on('value', snap => { if(snap.val()) { schedule = snap.val().schedule || {}; familyMembers = snap.val().familyMembers || familyMembers; render(); } });
 
-    // [개선] 엑셀 추출: 현재 필터링된 구성원의 스케줄만 시트화
     const exportExcel = () => {
         const header = ["시간", ...dayNames];
         const dataRows = [];
@@ -264,14 +250,13 @@
         XLSX.writeFile(wb, `우리집_시간표_${currentFilter}.xlsx`);
     };
 
-    // [변경] PDF 추출: 화면 캡처(Canvas) 방식으로 구현
     const exportPDF = async () => {
         const element = document.getElementById('tableWrapper');
         const canvas = await html2canvas(element, { scale: 2, useCORS: true });
         const imgData = canvas.toDataURL('image/png');
         
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('l', 'mm', 'a4'); // 가로 모드 A4
+        const pdf = new jsPDF('l', 'mm', 'a4');
         const imgProps = pdf.getImageProperties(imgData);
         const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
         const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
