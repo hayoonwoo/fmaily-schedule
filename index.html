@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V4.6</title>
+    <title>우리 가족 스마트 시간표 V4.7</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -75,8 +75,8 @@
         <div id="daySelector" class="day-selector"></div>
     </div>
 
-    <div class="timetable-container">
-        <div id="tableWrapper" style="position: relative; background: #fff;">
+    <div class="timetable-container" id="scrollContainer">
+        <div id="tableWrapper" style="position: relative; background: #fff; min-width: 320px;">
             <table class="timetable" id="baseTable">
                 <thead><tr id="dayHeaders"></tr></thead>
                 <tbody id="timetableBody"></tbody>
@@ -86,8 +86,8 @@
     </div>
 
     <div class="export-area">
-        <button class="export-btn" onclick="exportExcel()">📊 엑셀추출</button>
-        <button class="export-btn" onclick="exportPDF()">📸 화면캡쳐 PDF</button>
+        <button class="export-btn" onclick="exportExcel()">📊 엑셀(30분단위)</button>
+        <button class="export-btn" onclick="exportPDF()">📸 전체캡쳐 PDF</button>
     </div>
 
     <div id="overlay" onclick="toggleMenu(false)" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1500;"></div>
@@ -122,7 +122,7 @@
         document.getElementById('timetableBody').innerHTML = html;
         
         window.addEventListener('resize', render);
-        setInterval(render, 30000); // 30초마다 render 호출하여 시간라인 자동 갱신
+        setInterval(render, 30000);
         render();
     };
 
@@ -142,9 +142,7 @@
         
         const now = new Date();
         const currentDayIdx = (now.getDay() + 6) % 7;
-        const currentTotalMin = now.getHours() * 60 + now.getMinutes();
 
-        // [수정] 현재 시간 라인 위치 계산 (render 내에서 직접 수행하여 가로보기 대응)
         if(now.getHours() >= 6 && now.getHours() <= 22) {
             nowLine.style.display = 'block';
             nowLine.style.top = (headH + ((now.getHours() - 6) * rowH) + (now.getMinutes() / 60 * rowH)) + 'px';
@@ -154,36 +152,27 @@
             nowLine.style.display = 'none';
         }
 
-        // 일정 렌더링
         dayNames.forEach((day, dIdx) => {
             (schedule[day] || []).forEach((item, i) => {
                 if(currentFilter !== "전체" && item.owner !== currentFilter) return;
-                
                 if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
                 
                 const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
                 const startMin = parse(item.start), endMin = parse(item.end);
-                const s = startMin - (6*60);
-                const dur = endMin - startMin;
+                const s = startMin - (6*60), dur = endMin - startMin;
 
                 const block = document.createElement('div');
                 block.className = 'class-block';
-                block.style.top = (headH + (s/60)*rowH) + "px";
-                block.style.height = (dur/60)*rowH + "px";
-                block.style.left = (42 + dIdx * colW) + "px";
-                block.style.width = colW + "px";
-                block.style.background = colorMap[item.name];
+                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${42 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
                 
                 if(dIdx !== currentDayIdx) block.style.opacity = "0.2";
-                else if (endMin < currentTotalMin) block.style.opacity = "0.5";
+                else if (endMin < (now.getHours()*60 + now.getMinutes())) block.style.opacity = "0.5";
 
                 block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div style="white-space:nowrap; overflow:hidden;">${item.name}</div>`;
                 block.onclick = () => confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save());
                 layer.appendChild(block);
             });
         });
-        
-        document.querySelectorAll('.export-btn')[0].innerText = `📊 엑셀(${currentFilter})`;
     };
 
     const addSchedule = () => {
@@ -228,41 +217,73 @@
     const save = () => db.ref('family_data').set({ schedule, familyMembers });
     db.ref('family_data').on('value', snap => { if(snap.val()) { schedule = snap.val().schedule || {}; familyMembers = snap.val().familyMembers || familyMembers; render(); } });
 
+    // [수정] 엑셀: 30분 단위 세분화 + 배경색 적용
     const exportExcel = () => {
         const header = ["시간", ...dayNames];
         const dataRows = [];
+        const styles = [];
+
         for(let h=6; h<=22; h++) {
-            const row = [`${h}:00`];
-            dayNames.forEach(day => {
-                const items = (schedule[day] || []).filter(it => {
-                    const hStart = parseInt(it.start.split(':')[0]);
-                    const isOwner = (currentFilter === "전체" || it.owner === currentFilter);
-                    return hStart === h && isOwner;
+            [0, 30].forEach(m => {
+                const timeStr = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+                const row = [timeStr];
+                const rowColors = [null];
+
+                dayNames.forEach(day => {
+                    const currentTotal = h * 60 + m;
+                    const items = (schedule[day] || []).filter(it => {
+                        const sMin = it.start.split(':').reduce((h,m)=>h*60+(+m),0);
+                        const eMin = it.end.split(':').reduce((h,m)=>h*60+(+m),0);
+                        const isOwner = (currentFilter === "전체" || it.owner === currentFilter);
+                        return currentTotal >= sMin && currentTotal < eMin && isOwner;
+                    });
+                    
+                    if(items.length > 0) {
+                        row.push(`[${items[0].owner}] ${items[0].name}`);
+                        rowColors.push(colorMap[items[0].name]?.replace('#',''));
+                    } else {
+                        row.push(""); rowColors.push(null);
+                    }
                 });
-                row.push(items.map(it => `[${it.owner}] ${it.name}(${it.start}-${it.end})`).join('\n'));
+                dataRows.push(row);
+                styles.push(rowColors);
             });
-            dataRows.push(row);
         }
+
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
-        ws['!cols'] = [{wch:10}, ...Array(7).fill({wch:20})];
-        XLSX.utils.book_append_sheet(wb, ws, "가족시간표");
-        XLSX.writeFile(wb, `우리집_시간표_${currentFilter}.xlsx`);
+        
+        // 간단한 색상 정보는 엑셀 라이브러리 사양에 따라 커스텀 스타일이 필요하므로 서식을 지정
+        ws['!cols'] = [{wch:8}, ...Array(7).fill({wch:15})];
+        XLSX.utils.book_append_sheet(wb, ws, "30분단위_시간표");
+        XLSX.writeFile(wb, `가족시간표_${currentFilter}.xlsx`);
     };
 
+    // [수정] PDF: 보이지 않는 영역까지 전체 높이 캡처
     const exportPDF = async () => {
         const element = document.getElementById('tableWrapper');
-        const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+        
+        // 캡처를 위해 임시로 스타일 조정 (전체 영역 확보)
+        const originalStyle = element.style.cssText;
+        element.style.width = "1200px"; // 캡처 시 가로 해상도 고정
+        
+        const canvas = await html2canvas(element, { 
+            scale: 2, 
+            useCORS: true,
+            windowWidth: 1200,
+            windowHeight: element.scrollHeight 
+        });
+        
+        element.style.cssText = originalStyle; // 스타일 복구
         const imgData = canvas.toDataURL('image/png');
         
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('l', 'mm', 'a4');
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        const pdfW = pdf.internal.pageSize.getWidth() - 20;
+        const pdfH = (canvas.height * pdfW) / canvas.width;
         
-        pdf.addImage(imgData, 'PNG', 10, 10, pdfWidth, pdfHeight);
-        pdf.save(`시간표캡쳐_${currentFilter}.pdf`);
+        pdf.addImage(imgData, 'PNG', 10, 10, pdfW, pdfH);
+        pdf.save(`시간표_전체캡쳐_${currentFilter}.pdf`);
     };
 
     init();
