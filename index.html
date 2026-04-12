@@ -29,14 +29,14 @@
         .day-check input { display: none; }
         .day-check:has(input:checked) { background: #A29BFE; color: white; border-color: #A29BFE; }
 
-        /* [수정] 좌우 5% 여백 추가 */
+        /* [핵심 수정] 시간표 좌우 여백 5% 적용 */
         .timetable-container { flex: 1; overflow-y: auto; position: relative; background: #fff; padding: 0 5%; }
         .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; }
         .timetable th { background: #F1F3F5; font-size: 11px; height: 35px; border: 1px solid var(--brd); position: sticky; top: 0; z-index: 50; }
         .time-col { width: 42px; font-size: 10px; color: #ADB5BD; text-align: center; border: 1px solid var(--brd); }
         .timetable td { height: 45px; border: 1px solid var(--brd); }
 
-        /* [수정] 블록 레이어도 컨테이너 패딩 안쪽에 위치하도록 조정 */
+        /* 블록 레이어 위치를 컨테이너 여백에 맞춤 */
         #blockLayer { position: absolute; top: 0; left: 5%; right: 5%; height: 100%; pointer-events: none; z-index: 25; }
         .class-block { 
             position: absolute; pointer-events: auto;
@@ -169,7 +169,6 @@
 
                 const block = document.createElement('div');
                 block.className = 'class-block';
-                // [수정] 레이어 자체가 5% 오프셋되어 있으므로 추가 오프셋 불필요
                 block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${42 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
                 
                 if(dIdx !== currentDayIdx) block.style.opacity = "0.2";
