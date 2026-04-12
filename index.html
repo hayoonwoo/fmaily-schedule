@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V4.1</title>
+    <title>우리 가족 스마트 시간표 V4.2</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -19,10 +19,8 @@
         .nav-btn { background: #F1F3F5; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
         .nav-btn.primary { background: var(--p-color); color: white; }
 
-        /* [수정] 모바일 최적화 입력 패널 */
         .input-panel { background: #fff; padding: 10px; border-bottom: 1px solid var(--brd); flex-shrink: 0; }
         .input-group { display: flex; gap: 4px; margin-bottom: 8px; }
-        
         .inp-name { flex: 1.2; min-width: 0; padding: 10px; border: 2px solid #DEE2E6; border-radius: 8px; font-size: 13px; outline: none; }
         .inp-time { flex: 1; min-width: 0; padding: 10px 5px; border: 2px solid #DEE2E6; border-radius: 8px; font-size: 13px; outline: none; text-align: center; }
         
@@ -46,8 +44,16 @@
             line-height: 1.1; overflow: hidden;
         }
 
-        #nowLine { position: absolute; left: 42px; right: 0; height: 2px; background: #FF7675; z-index: 60; pointer-events: none; }
-        #nowLine::before { content: ''; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; background: #FF7675; border-radius: 50%; }
+        /* [수정] 오늘 요일 칸에만 표시되는 시간 라인 */
+        #nowLine { 
+            position: absolute; height: 2px; background: #FF7675; 
+            z-index: 60; pointer-events: none; 
+            transition: all 0.3s ease;
+        }
+        #nowLine::before { 
+            content: ''; position: absolute; left: -3px; top: -3px; 
+            width: 8px; height: 8px; background: #FF7675; border-radius: 50%; 
+        }
 
         .export-area { padding: 10px; display: flex; gap: 8px; background: #fff; border-top: 1px solid var(--brd); }
         .export-btn { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #DEE2E6; background: #fff; font-size: 12px; font-weight: 800; }
@@ -119,22 +125,31 @@
         let html = '';
         for(let h=6; h<=22; h++) html += `<tr><td class="time-col">${h}:00</td>${'<td></td>'.repeat(7)}</tr>`;
         document.getElementById('timetableBody').innerHTML = html;
+        
+        setInterval(updateNowLine, 30000); // 30초마다 갱신
         updateNowLine();
-        setInterval(updateNowLine, 60000);
     };
 
     const updateNowLine = () => {
         const now = new Date();
         const hour = now.getHours(), min = now.getMinutes();
         const line = document.getElementById('nowLine');
+        const currentDayIdx = (now.getDay() + 6) % 7; // 월=0, 일=6
+
         if(hour < 6 || hour > 22) { line.style.display = 'none'; return; }
         
-        line.style.display = 'block';
         const table = document.getElementById('baseTable');
         const headH = table.querySelector('thead').offsetHeight;
         const rowH = table.querySelector('td').offsetHeight;
+        const colW = (table.offsetWidth - 42) / 7;
+
+        line.style.display = 'block';
+        // [수정] 오늘 요일 칸(Column) 안에서만 보이도록 위치와 폭 설정
         line.style.top = (headH + ((hour - 6) * rowH) + (min / 60 * rowH)) + 'px';
-        render();
+        line.style.left = (42 + currentDayIdx * colW) + 'px';
+        line.style.width = colW + 'px';
+        
+        render(); 
     };
 
     const render = () => {
@@ -163,6 +178,7 @@
                 block.className = 'class-block';
                 block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${42 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
                 
+                // 오늘 외 요일은 투명도 80% (0.2), 오늘 중 지난 일정은 투명도 50% (0.5)
                 if(dIdx !== currentDayIdx) block.style.opacity = "0.2";
                 else if (endMin < currentTotalMin) block.style.opacity = "0.5";
 
