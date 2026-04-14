@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V5.8</title>
+    <title>우리 가족 스마트 시간표 V5.9</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
@@ -43,7 +43,6 @@
         .input-group label { display: block; font-size: 12px; margin-bottom: 5px; font-weight: bold; }
         .modal-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; font-size: 14px; }
         
-        /* 요일 다중 선택 스타일 */
         .day-flex { display: flex; gap: 4px; margin-top: 5px; }
         .day-chip { flex: 1; padding: 8px 0; text-align: center; background: #F1F3F5; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; border: 1px solid transparent; }
         .day-chip.active { background: #A29BFE; color: white; border-color: #6C5CE7; }
@@ -59,7 +58,7 @@
     <nav class="top-nav">
         <button class="nav-btn" onclick="openMemberModal()">👨‍👩‍👧‍👦 가족명단</button>
         <div id="viewStatus" style="font-weight: 800; color: #0984E3; font-size: 14px;">🌟 전체보기</div>
-        <button class="nav-btn primary" onclick="exportExcel()">📊 엑셀추출</button>
+        <button class="nav-btn primary" onclick="exportExcel()">📊 엑셀</button>
     </nav>
 
     <div class="timetable-container">
@@ -76,23 +75,19 @@
 
     <div id="inputModal" class="modal">
         <h3 id="modalTitle" style="margin-top:0; font-size:16px; color:#574B90;">📅 일정 추가</h3>
-        
         <div class="input-group">
             <label>1. 요일 선택 (중복 가능)</label>
             <div class="day-flex" id="modalDayContainer"></div>
         </div>
-
         <div class="input-group">
             <label>2. 대상 구성원</label>
             <select id="modalOwner" class="modal-input"></select>
         </div>
-
         <div class="input-group">
             <label>3. 일정 이름</label>
             <input type="text" id="modalName" class="modal-input" placeholder="일정명을 입력하세요">
             <div class="task-suggestions" id="taskSuggestions"></div>
         </div>
-
         <div style="display:flex; gap:5px;">
             <div class="input-group" style="flex:1">
                 <label>시작(HHMM)</label>
@@ -129,6 +124,13 @@
     let selectedDays = [];
 
     const init = () => {
+        // 로컬스토리지에서 이 기기의 마지막 필터 설정 불러오기
+        const savedFilter = localStorage.getItem('lastFilter');
+        if(savedFilter) {
+            currentFilter = savedFilter;
+            document.getElementById('viewStatus').innerText = (currentFilter === "전체" ? "🌟 " : "👤 ") + currentFilter;
+        }
+
         document.getElementById('dayHeaders').innerHTML = '<th class="time-col">시간</th>' + dayNames.map(d => `<th>${d}</th>`).join('');
         let html = '';
         for(let h=6; h<=22; h++) {
@@ -178,7 +180,7 @@
     };
 
     const openInputModal = (day, time) => {
-        selectedDays = [day]; // 클릭한 요일 기본 선택
+        selectedDays = [day];
         renderDayChips();
         document.getElementById('modalStart').value = time;
         const endH = (parseInt(time.slice(0,2)) + 1).toString().padStart(2,'0');
@@ -208,22 +210,13 @@
         const owner = document.getElementById('modalOwner').value;
         const sV = document.getElementById('modalStart').value;
         const eV = document.getElementById('modalEnd').value;
-        
-        if(!name || sV.length < 4 || eV.length < 4 || selectedDays.length === 0) return alert("요일, 이름, 시간을 모두 확인해주세요.");
-        
-        // 1. 자동 리스트업 로직 보완
-        if(!customTasks.includes(name)) {
-            customTasks.push(name);
-        }
-
-        // 2. 선택된 모든 요일에 등록
+        if(!name || sV.length < 4 || eV.length < 4 || selectedDays.length === 0) return alert("입력 정보를 확인해주세요.");
+        if(!customTasks.includes(name)) customTasks.push(name);
         selectedDays.forEach(day => {
             if(!schedule[day]) schedule[day] = [];
             schedule[day].push({ name, owner, start: `${sV.slice(0,2)}:${sV.slice(2,4)}`, end: `${eV.slice(0,2)}:${eV.slice(2,4)}` });
         });
-
-        save(); // DB 저장
-        closeAllModals();
+        save(); closeAllModals();
     };
 
     const openMemberModal = () => { renderMemberList(); document.getElementById('memberModal').style.display = 'block'; document.getElementById('overlay').style.display = 'block'; };
@@ -233,12 +226,18 @@
         document.getElementById('memberList').innerHTML = h;
     };
 
-    const setFilter = (n) => { currentFilter = n; document.getElementById('viewStatus').innerText = (n === "전체" ? "🌟 " : "👤 ") + n; closeAllModals(); render(); };
+    const setFilter = (n) => {
+        currentFilter = n;
+        // 로컬스토리지에 현재 기기의 설정 저장
+        localStorage.setItem('lastFilter', n);
+        document.getElementById('viewStatus').innerText = (n === "전체" ? "🌟 " : "👤 ") + n;
+        closeAllModals(); 
+        render(); 
+    };
+
     const closeAllModals = () => { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); document.getElementById('overlay').style.display = 'none'; document.getElementById('modalName').value = ''; };
     const addMember = () => { const n = prompt("이름:"); if(n) { familyMembers.push(n); save(); renderMemberList(); } };
     const deleteMember = (i) => { if(confirm(`${familyMembers[i]} 삭제?`)) { familyMembers.splice(i, 1); save(); renderMemberList(); } };
-    
-    // DB 저장 시 일정 리스트(customTasks)도 반드시 포함
     const save = () => db.ref('family_data').set({ schedule, familyMembers, customTasks });
 
     const exportExcel = () => {
