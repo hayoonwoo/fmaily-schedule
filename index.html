@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V5.9</title>
+    <title>우리 가족 스마트 시간표 V5.9 (Offset 적용)</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
@@ -12,7 +12,39 @@
     <style>
         :root { --p-color: #74B9FF; --bg: #F8F9FA; --brd: #E9ECEF; --txt: #2D3436; --header-h: 50px; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Pretendard', sans-serif; }
-        body, html { height: 100%; margin: 0; background: var(--bg); color: var(--txt); overflow: hidden; display: flex; flex-direction: column; }
+        
+        /* [수정] 배경 설정: 화면 전체를 배경색으로 채우고 중앙 정렬 */
+        body, html { 
+            height: 100%; 
+            margin: 0; 
+            background: #CED6E0; /* 오프셋 여백을 확인하기 위한 어두운 배경색 */
+            overflow: hidden; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+        }
+
+        /* [추가] 메인 컨테이너: 상하좌우 10% 오프셋 강제 적용 */
+        .main-wrapper {
+            width: 80vw;  /* 좌우 10% 여백 */
+            height: 80vh; /* 상하 10% 여백 */
+            background: var(--bg);
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        /* [수정] 세로 방향(Portrait) 대응: 여백 살짝 조정 */
+        @media (orientation: portrait) {
+            .main-wrapper {
+                width: 90vw; /* 가로 여백 5% */
+                height: 85vh; /* 상하 여백 7.5% */
+            }
+        }
         
         .top-nav { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--brd); z-index: 1000; }
         .nav-btn { background: #F1F3F5; border: none; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px; }
@@ -55,19 +87,21 @@
 </head>
 <body>
 
-    <nav class="top-nav">
-        <button class="nav-btn" onclick="openMemberModal()">👨‍👩‍👧‍👦 가족명단</button>
-        <div id="viewStatus" style="font-weight: 800; color: #0984E3; font-size: 14px;">🌟 전체보기</div>
-        <button class="nav-btn primary" onclick="exportExcel()">📊 엑셀</button>
-    </nav>
+    <div class="main-wrapper">
+        <nav class="top-nav">
+            <button class="nav-btn" onclick="openMemberModal()">👨‍👩‍👧‍👦 가족명단</button>
+            <div id="viewStatus" style="font-weight: 800; color: #0984E3; font-size: 14px;">🌟 전체보기</div>
+            <button class="nav-btn primary" onclick="exportExcel()">📊 엑셀</button>
+        </nav>
 
-    <div class="timetable-container">
-        <div id="tableWrapper" style="position: relative; background: #fff;">
-            <table class="timetable" id="baseTable">
-                <thead><tr id="dayHeaders"></tr></thead>
-                <tbody id="timetableBody"></tbody>
-            </table>
-            <div id="blockLayer"><div id="nowLine"></div></div>
+        <div class="timetable-container">
+            <div id="tableWrapper" style="position: relative; background: #fff;">
+                <table class="timetable" id="baseTable">
+                    <thead><tr id="dayHeaders"></tr></thead>
+                    <tbody id="timetableBody"></tbody>
+                </table>
+                <div id="blockLayer"><div id="nowLine"></div></div>
+            </div>
         </div>
     </div>
 
@@ -108,6 +142,7 @@
     </div>
 
 <script>
+    // 기존 스크립트 로직 (Firebase 설정 등 100% 동일)
     const firebaseConfig = {
         apiKey: "AIzaSyD8Lu75Q9T4Uu0OA_2fXpKLh3t6z04H6yg",
         authDomain: "family-scheduler-f61ee.firebaseapp.com",
@@ -124,7 +159,6 @@
     let selectedDays = [];
 
     const init = () => {
-        // 로컬스토리지에서 이 기기의 마지막 필터 설정 불러오기
         const savedFilter = localStorage.getItem('lastFilter');
         if(savedFilter) {
             currentFilter = savedFilter;
@@ -228,7 +262,6 @@
 
     const setFilter = (n) => {
         currentFilter = n;
-        // 로컬스토리지에 현재 기기의 설정 저장
         localStorage.setItem('lastFilter', n);
         document.getElementById('viewStatus').innerText = (n === "전체" ? "🌟 " : "👤 ") + n;
         closeAllModals(); 
