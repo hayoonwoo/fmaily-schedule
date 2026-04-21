@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>가족 실시간 스케줄러</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+
     <style>
-        /* 1. 기본 스타일 및 오프셋 설정 */
+        /* 1. 배경 설정 (바깥쪽) */
         body {
             margin: 0;
             padding: 0;
@@ -14,110 +17,89 @@
             align-items: center;
             width: 100vw;
             height: 100vh;
-            background-color: #f0f2f5;
-            font-family: 'Pretendard', -apple-system, sans-serif;
-            overflow: hidden; /* 바깥 스크롤 방지 */
+            background-color: #e9ecef; /* 여백을 확인하기 위한 배경색 */
+            font-family: 'Pretendard', sans-serif;
+            overflow: hidden;
         }
 
-        /* 메인 컨테이너: 상하좌우 10% 여백 (너비 80%, 높이 80%) */
-        .app-container {
-            width: 80vw;
-            height: 80vh;
+        /* 2. 메인 컨테이너 (상하좌우 10% 오프셋 강제 적용) */
+        .main-wrapper {
+            width: 80vw;  /* 가로 80% (좌우 10% 여백) */
+            height: 80vh; /* 세로 80% (상하 10% 여백) */
             background: white;
-            border-radius: 24px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            overflow: hidden; /* 내부 요소가 넘치지 않게 */
+            position: relative;
         }
 
-        /* 2. 세로 모드 (Portrait) 대응 */
-        @media (orientation: portrait) {
-            .app-container {
-                width: 90vw;  /* 세로는 폭이 좁으므로 여백을 5%로 살짝 조정해 가독성 확보 */
-                height: 85vh;
-            }
-            .content-area {
-                flex-direction: column;
-            }
-        }
-
-        /* 3. 가로 모드 (Landscape) 대응 */
-        @media (orientation: landscape) {
-            .app-container {
-                width: 80vw;
-                height: 80vh;
-            }
-            .content-area {
-                flex-direction: row; /* 가로일 땐 달력과 일정을 좌우로 배치 가능 */
-            }
-        }
-
-        /* 내부 구성 요소 스타일 */
+        /* 3. 헤더 영역 */
         .header {
-            padding: 20px;
-            background: #fff;
+            padding: 15px;
+            background: #ffffff;
             border-bottom: 1px solid #eee;
             text-align: center;
-            font-weight: bold;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #333;
         }
 
-        .content-area {
-            flex: 1;
+        /* 4. 콘텐츠 영역 (데이터가 표시될 곳) */
+        .content {
+            flex: 1; /* 남은 높이를 모두 차지 */
             display: flex;
-            overflow: hidden;
-        }
-
-        .calendar-section {
-            flex: 1.5;
+            flex-direction: column;
+            overflow-y: auto; /* 내용이 많으면 내부에서 스크롤 */
             padding: 15px;
-            overflow-y: auto;
         }
 
-        .schedule-section {
-            flex: 1;
-            padding: 15px;
-            background: #fafafa;
-            border-left: 1px solid #eee;
-            overflow-y: auto;
-        }
-
-        /* 모바일 세로 모드일 때 섹션 구분 */
-        @media (orientation: portrait) {
-            .schedule-section {
-                border-left: none;
-                border-top: 1px solid #eee;
+        /* 5. 가로/세로 대응 레이아웃 (반응형) */
+        @media (orientation: landscape) {
+            .content {
+                flex-direction: row; /* 가로일 땐 좌우 배치 */
             }
+            .calendar-area { flex: 1.2; border-right: 1px solid #eee; padding-right: 10px; }
+            .list-area { flex: 1; padding-left: 10px; }
+        }
+
+        @media (orientation: portrait) {
+            .main-wrapper { width: 90vw; height: 85vh; } /* 세로는 여백을 살짝 줄임 */
+            .content { flex-direction: column; } /* 세로는 위아래 배치 */
+            .calendar-area { height: 50%; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+            .list-area { height: 50%; padding-top: 10px; }
+        }
+
+        /* 기존 ID 스타일 유지 */
+        #calendar, #event-list {
+            width: 100%;
+            height: 100%;
         }
     </style>
 </head>
 <body>
 
-    <div class="app-container">
-        <div class="header">
-            우리 가족 스케줄러 (V2.0)
-        </div>
+    <div class="main-wrapper">
+        <div class="header">우리 가족 실시간 스케줄러</div>
         
-        <div class="content-area">
-            <div class="calendar-section">
-                <div id="calendar">달력 로드 중...</div>
+        <div class="content">
+            <div class="calendar-area">
+                <div id="calendar">달력을 불러오는 중...</div>
             </div>
 
-            <div class="schedule-section">
-                <div id="event-list">오늘의 일정</div>
+            <div class="list-area">
+                <div id="event-list">일정을 불러오는 중...</div>
             </div>
         </div>
     </div>
 
     <script>
-        // 4. 화면 회전 시 부드러운 처리를 위한 이벤트 리스너 (선택 사항)
-        window.addEventListener('orientationchange', function() {
-            // 회전 시 레이아웃 재계산이 필요한 로직이 있다면 여기에 추가
-            console.log("화면 방향 변경됨");
-        });
-
-        // 기존에 제미나이와 작성했던 Firebase 데이터 바인딩 코드를 여기에 삽입하세요.
+        // 이 부분에 기존에 작성하셨던 Firebase 초기화 설정과 
+        // 데이터를 가져와서 #calendar, #event-list에 뿌려주는 스크립트를 
+        // 그대로 복사해서 넣으시면 됩니다.
+        
+        console.log("레이아웃 로드 완료");
     </script>
 </body>
 </html>
