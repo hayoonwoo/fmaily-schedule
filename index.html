@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>우리 가족 스마트 시간표 V5.9 (Offset 적용)</title>
+    <title>우리 가족 스마트 시간표 V5.9 Final</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
@@ -13,37 +13,22 @@
         :root { --p-color: #74B9FF; --bg: #F8F9FA; --brd: #E9ECEF; --txt: #2D3436; --header-h: 50px; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Pretendard', sans-serif; }
         
-        /* [수정] 배경 설정: 화면 전체를 배경색으로 채우고 중앙 정렬 */
+        /* 배경 설정: 오프셋 여백 확인을 위한 어두운 배경 */
         body, html { 
-            height: 100%; 
-            margin: 0; 
-            background: #CED6E0; /* 오프셋 여백을 확인하기 위한 어두운 배경색 */
-            overflow: hidden; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
+            height: 100%; margin: 0; background: #CED6E0; overflow: hidden; 
+            display: flex; justify-content: center; align-items: center; 
         }
 
-        /* [추가] 메인 컨테이너: 상하좌우 10% 오프셋 강제 적용 */
+        /* 메인 컨테이너: 상하좌우 10% 오프셋 */
         .main-wrapper {
-            width: 80vw;  /* 좌우 10% 여백 */
-            height: 80vh; /* 상하 10% 여백 */
-            background: var(--bg);
-            border-radius: 20px;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-            transition: all 0.3s ease;
+            width: 80vw; height: 80vh; background: var(--bg);
+            border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column; overflow: hidden; position: relative;
         }
 
-        /* [수정] 세로 방향(Portrait) 대응: 여백 살짝 조정 */
+        /* 세로 모드 대응 */
         @media (orientation: portrait) {
-            .main-wrapper {
-                width: 90vw; /* 가로 여백 5% */
-                height: 85vh; /* 상하 여백 7.5% */
-            }
+            .main-wrapper { width: 90vw; height: 85vh; }
         }
         
         .top-nav { height: var(--header-h); background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid var(--brd); z-index: 1000; }
@@ -142,7 +127,6 @@
     </div>
 
 <script>
-    // 기존 스크립트 로직 (Firebase 설정 등 100% 동일)
     const firebaseConfig = {
         apiKey: "AIzaSyD8Lu75Q9T4Uu0OA_2fXpKLh3t6z04H6yg",
         authDomain: "family-scheduler-f61ee.firebaseapp.com",
@@ -171,9 +155,16 @@
             html += `<tr><td class="time-col">${h}:00</td>${dayNames.map(d => `<td onclick="openInputModal('${d}', '${h.toString().padStart(2,'0')}00')"></td>`).join('')}</tr>`;
         }
         document.getElementById('timetableBody').innerHTML = html;
+        
+        // 중요: 리사이즈와 방향 전환 이벤트 통합 대응
         window.addEventListener('resize', render);
+        window.addEventListener('orientationchange', () => setTimeout(render, 300));
+        
         setInterval(render, 30000);
         render();
+        
+        // 렌더링 지연 문제 방지: 0.5초 뒤에 다시 한번 강제 렌더링
+        setTimeout(render, 500);
     };
 
     const render = () => {
@@ -181,8 +172,13 @@
         const nowLine = document.getElementById('nowLine');
         layer.innerHTML = ''; if(nowLine) layer.appendChild(nowLine);
         const table = document.getElementById('baseTable');
-        if(!table.offsetWidth) return;
-        const headH = table.querySelector('thead').offsetHeight, rowH = table.querySelector('tbody td').offsetHeight, colW = table.querySelector('tbody td:nth-child(2)').offsetWidth;
+        
+        // 표가 아직 그려지지 않았으면 렌더링 중단 (무한 루프 방지)
+        if(!table || !table.offsetWidth) return;
+        
+        const headH = table.querySelector('thead').offsetHeight, 
+              rowH = table.querySelector('tbody td').offsetHeight, 
+              colW = table.querySelector('tbody td:nth-child(2)').offsetWidth;
         
         const now = new Date();
         if(now.getHours() >= 6 && now.getHours() <= 22) {
@@ -214,8 +210,7 @@
     };
 
     const openInputModal = (day, time) => {
-        selectedDays = [day];
-        renderDayChips();
+        selectedDays = [day]; renderDayChips();
         document.getElementById('modalStart').value = time;
         const endH = (parseInt(time.slice(0,2)) + 1).toString().padStart(2,'0');
         document.getElementById('modalEnd').value = `${endH}00`;
@@ -242,8 +237,7 @@
     const saveFromModal = () => {
         const name = document.getElementById('modalName').value.trim();
         const owner = document.getElementById('modalOwner').value;
-        const sV = document.getElementById('modalStart').value;
-        const eV = document.getElementById('modalEnd').value;
+        const sV = document.getElementById('modalStart').value, eV = document.getElementById('modalEnd').value;
         if(!name || sV.length < 4 || eV.length < 4 || selectedDays.length === 0) return alert("입력 정보를 확인해주세요.");
         if(!customTasks.includes(name)) customTasks.push(name);
         selectedDays.forEach(day => {
@@ -261,11 +255,9 @@
     };
 
     const setFilter = (n) => {
-        currentFilter = n;
-        localStorage.setItem('lastFilter', n);
+        currentFilter = n; localStorage.setItem('lastFilter', n);
         document.getElementById('viewStatus').innerText = (n === "전체" ? "🌟 " : "👤 ") + n;
-        closeAllModals(); 
-        render(); 
+        closeAllModals(); render(); 
     };
 
     const closeAllModals = () => { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); document.getElementById('overlay').style.display = 'none'; document.getElementById('modalName').value = ''; };
@@ -274,17 +266,13 @@
     const save = () => db.ref('family_data').set({ schedule, familyMembers, customTasks });
 
     const exportExcel = () => {
-        const header = ["시간", ...dayNames];
-        const rows = [header];
+        const header = ["시간", ...dayNames], rows = [header];
         for(let h=6; h<=22; h++){
             [0, 30].forEach(m => {
-                const t = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
-                const r = [t];
+                const t = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`, r = [t];
                 dayNames.forEach(d => {
                     const its = (schedule[d]||[]).filter(it => {
-                        const min = h*60+m;
-                        const s = it.start.split(':').reduce((a,b)=>a*60+(+b),0);
-                        const e = it.end.split(':').reduce((a,b)=>a*60+(+b),0);
+                        const min = h*60+m, s = it.start.split(':').reduce((a,b)=>a*60+(+b),0), e = it.end.split(':').reduce((a,b)=>a*60+(+b),0);
                         return min >= s && min < e && (currentFilter==="전체" || it.owner===currentFilter);
                     });
                     r.push(its.length > 0 ? `[${its[0].owner}] ${its[0].name}` : "");
@@ -293,8 +281,7 @@
             });
         }
         const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(rows);
-        XLSX.utils.book_append_sheet(wb, ws, "가족시간표");
-        XLSX.writeFile(wb, `가족시간표.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "가족시간표"); XLSX.writeFile(wb, `가족시간표.xlsx`);
     };
 
     db.ref('family_data').on('value', snap => { 
