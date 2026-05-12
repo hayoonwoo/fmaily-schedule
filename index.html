@@ -13,20 +13,17 @@
         :root { --p-color: #74B9FF; --bg: #F8F9FA; --brd: #E9ECEF; --txt: #2D3436; --header-h: 50px; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Pretendard', sans-serif; }
         
-        /* 배경 설정: 오프셋 여백 확인을 위한 어두운 배경 */
         body, html { 
             height: 100%; margin: 0; background: #CED6E0; overflow: hidden; 
             display: flex; justify-content: center; align-items: center; 
         }
 
-        /* 메인 컨테이너: 상하좌우 10% 오프셋 */
         .main-wrapper {
             width: 80vw; height: 80vh; background: var(--bg);
             border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.2);
             display: flex; flex-direction: column; overflow: hidden; position: relative;
         }
 
-        /* 세로 모드 대응 */
         @media (orientation: portrait) {
             .main-wrapper { width: 90vw; height: 85vh; }
         }
@@ -156,24 +153,30 @@
         }
         document.getElementById('timetableBody').innerHTML = html;
         
-        // 중요: 리사이즈와 방향 전환 이벤트 통합 대응
         window.addEventListener('resize', render);
-        window.addEventListener('orientationchange', () => setTimeout(render, 300));
+        window.addEventListener('orientationchange', () => setTimeout(render, 500));
         
+        // Firebase 리스너 연결
+        db.ref('family_data').on('value', snap => { 
+            if(snap.val()) { 
+                schedule = snap.val().schedule || {}; 
+                familyMembers = snap.val().familyMembers || familyMembers; 
+                customTasks = snap.val().customTasks || customTasks;
+                render(); // 데이터가 들어오면 즉시 렌더링
+            } 
+        });
+
         setInterval(render, 30000);
-        render();
-        
-        // 렌더링 지연 문제 방지: 0.5초 뒤에 다시 한번 강제 렌더링
-        setTimeout(render, 500);
+        setTimeout(render, 800); // 로딩 직후 안전 렌더링
     };
 
     const render = () => {
         const layer = document.getElementById('blockLayer');
         const nowLine = document.getElementById('nowLine');
+        if(!layer) return;
         layer.innerHTML = ''; if(nowLine) layer.appendChild(nowLine);
         const table = document.getElementById('baseTable');
         
-        // 표가 아직 그려지지 않았으면 렌더링 중단 (무한 루프 방지)
         if(!table || !table.offsetWidth) return;
         
         const headH = table.querySelector('thead').offsetHeight, 
@@ -189,24 +192,27 @@
         } else { nowLine.style.display = 'none'; }
 
         dayNames.forEach((day, dIdx) => {
-            (schedule[day] || []).forEach((item, i) => {
-                if(currentFilter !== "전체" && item.owner !== currentFilter) return;
-                if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
-                const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
-                const s = parse(item.start) - 360, dur = parse(item.end) - parse(item.start);
-                const block = document.createElement('div');
-                block.className = 'class-block';
-                block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${42 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
-                block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div>${item.name}</div>`;
-                block.onclick = (e) => { e.stopPropagation(); confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save()); };
-                layer.appendChild(block);
-            });
+            if(schedule[day]) {
+                schedule[day].forEach((item, i) => {
+                    if(currentFilter !== "전체" && item.owner !== currentFilter) return;
+                    if(!colorMap[item.name]) colorMap[item.name] = colorPalette[Object.keys(colorMap).length % colorPalette.length];
+                    const parse = t => t.split(':').reduce((h, m) => h*60 + (+m), 0);
+                    const s = parse(item.start) - 360, dur = parse(item.end) - parse(item.start);
+                    const block = document.createElement('div');
+                    block.className = 'class-block';
+                    block.style.cssText = `top:${headH + (s/60)*rowH}px; height:${(dur/60)*rowH}px; left:${42 + dIdx*colW}px; width:${colW}px; background:${colorMap[item.name]};`;
+                    block.innerHTML = `<div style="font-size:8px; opacity:0.8">${item.owner}</div><div>${item.name}</div>`;
+                    block.onclick = (e) => { e.stopPropagation(); confirm('삭제하시겠습니까?') && (schedule[day].splice(i, 1), save()); };
+                    layer.appendChild(block);
+                });
+            }
         });
         updateTaskSuggestions();
     };
 
     const updateTaskSuggestions = () => {
-        document.getElementById('taskSuggestions').innerHTML = customTasks.map(t => `<div class="s-chip" onclick="setModalName('${t}')">${t}</div>`).join('');
+        const suggBox = document.getElementById('taskSuggestions');
+        if(suggBox) suggBox.innerHTML = customTasks.map(t => `<div class="s-chip" onclick="setModalName('${t}')">${t}</div>`).join('');
     };
 
     const openInputModal = (day, time) => {
@@ -283,15 +289,6 @@
         const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(rows);
         XLSX.utils.book_append_sheet(wb, ws, "가족시간표"); XLSX.writeFile(wb, `가족시간표.xlsx`);
     };
-
-    db.ref('family_data').on('value', snap => { 
-        if(snap.val()) { 
-            schedule = snap.val().schedule || {}; 
-            familyMembers = snap.val().familyMembers || familyMembers; 
-            customTasks = snap.val().customTasks || customTasks;
-            render(); 
-        } 
-    });
 
     init();
 </script>
